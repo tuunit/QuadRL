@@ -47,7 +47,7 @@ class PolicyNet(NeuralNet):
             rf = position + action + angular + linear
 
             # create value function for off policy
-            iterf = tf.constant(1, dtype=tf.int32)
+            iterf = tf.constant(0, dtype=tf.int32)
             vf = tf.constant(0, dtype=tf.float32)
             cf = lambda i, vf: tf.less(i, self.states_f_l)
 

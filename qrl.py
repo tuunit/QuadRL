@@ -129,14 +129,14 @@ def run_training(arguments):
                 # Predict action with policy network
                 action = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input:[state]})[0])
 
-                # Save prediction for the optimization step
-                actions.append(action)
-
                 # Add PID controller outputs
                 action[0] += -pitch_PID.output + yaw_PID.output
                 action[1] += +roll_PID.output - yaw_PID.output
                 action[2] += +pitch_PID.output + yaw_PID.output
                 action[3] += -roll_PID.output - yaw_PID.output
+
+                # Save prediction for the optimization step
+                actions.append(action)
 
                 # Add bias to guarantee take off
                 action = action + 459
@@ -146,7 +146,7 @@ def run_training(arguments):
 
                 # Save full pose of the Quadcopter if a junction has to be created at this point of time later on
                 if b in branches:
-                    branch_poses.append({'pose': sub.get_pose(), 'action': action})
+                    branch_poses.append({'pose': sub.get_pose(), 'action': action, 'position': b})
 
                 # Feed action vector to the drone
                 pub.speed(list(action))
@@ -206,14 +206,14 @@ def run_training(arguments):
                         # Predict action with policy network
                         action = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input:[state]})[0])
 
-                        # Save prediction for the optimization step
-                        actions.append(action)
-
                         # Add PID controller outputs
                         action[0] += -pitch_PID.output + yaw_PID.output
                         action[1] += +roll_PID.output - yaw_PID.output
                         action[2] += +pitch_PID.output + yaw_PID.output
                         action[3] += -roll_PID.output - yaw_PID.output
+
+                        # Save prediction for the optimization step
+                        actions.append(action)
 
                         # Add bias to guarantee take off
                         action = action + 459
@@ -232,14 +232,14 @@ def run_training(arguments):
                             # Feed action vector to the Quadcopter
                             pub.speed(list(action))
 
-                        # Save state vector
-                        states.append(state)
+                            # Save state vector
+                            states.append(state)
 
-                        # Calculate and save cost of state
-                        costs.append(cost(position, action, angular, linear))
+                            # Calculate and save cost of state
+                            costs.append(cost(position, action, angular, linear))
 
                     # Save branch trajectory to the list of the collection cycle
-                    trajectories.append({'level': n, 'noise': noise, 'states': states, 'actions': actions, 'costs': costs})
+                    trajectories.append({'level': n, 'noise': noise, 'states': states, 'actions': actions, 'costs': costs, 'position': b['position']})
             pbar.close()
             del(pbar)
 
@@ -247,12 +247,12 @@ def run_training(arguments):
             pub.pause()
 
             # Get random trajectories from the previous collection cycles
-            random_traj = get_random_trajectories(history)
+            #random_traj = get_random_trajectories(history)
 
-            if random_traj:
-                value_traj = trajectories + random_traj
-            else:
-                value_traj = trajectories
+            #if random_traj:
+            #    value_traj = trajectories + random_traj
+            #else:
+            value_traj = trajectories
 
 
             # Start value network training
@@ -294,10 +294,10 @@ def run_training(arguments):
             with policy_sess.as_default():
                 with policy_graph.as_default():
                     traj_len = len(trajectories)
-                    if random_traj:
-                        policy_traj = trajectories + random_traj
-                    else:
-                        policy_traj = trajectories
+                    #if random_traj:
+                    #    policy_traj = trajectories + random_traj
+                    #else:
+                    policy_traj = trajectories
                     
                     pbar = tqdm(range(len(policy_traj)))
                     pbar.set_description('Optimising policy network')
@@ -320,6 +320,9 @@ def run_training(arguments):
                                 if i >= traj_len and (i - traj_len) % 2 == 0:
                                     continue
 
+                            if len(states_p) + policy_traj[i-1]['level'] != len(states_f) + trajectory['level']:
+                                states_p = states_p[trajectory['position']:]
+
                             T_f = len(states_f)
                             T_p = len(states_p)
                             
@@ -329,7 +332,7 @@ def run_training(arguments):
                                 val_p = value_net.model().eval(session=value_sess, feed_dict={value_net.input:[states_p[T_p-1]]})[0][0]
 
                             states = np.concatenate((states_f, states_p))
-                            junction = trajectory['states'][0]
+                            junction = states_p[0]
                             noise = trajectory['noise'] - 459
                             
                             # Feed the data to the optimization graph
