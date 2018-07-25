@@ -20,8 +20,9 @@ class DroneInterface:
         qsim.init()
 
     def reset(self):
+        self.pose = np.array([0.0 for _ in range(13)])
         self.pose[self.orientation] = [1.0, 0.0, 0.0, 0.0]
-        self.pose[self.position] = [4, 4, 4]
+        self.pose[self.position][2] = 0.1
 
     def set_timestep(self, dt):
         self.dt = dt
@@ -48,6 +49,7 @@ class DroneInterface:
         return self.get_pose()
 
     def initial_pose(self):
+        self.reset()
         self.pose[self.position] = [np.random.normal(scale=3), np.random.normal(scale=3), np.random.rand() * 5 + 3]
 
         x = np.random.normal(scale=20)
