@@ -42,9 +42,10 @@ action_noise = tf.placeholder('float', [4])
 action_pred = policy_net.model()
 
 # jacobian action wrt parameters
-J = tf.stack([tf.concat([tf.reshape(tf.gradients(action_pred[:, idx], param)[0], [1, -1])
+J = tf.stack([tf.concat([tf.reshape(tf.gradients(action_pred[:, idx].__getitem__(states_f_l), param), [1, -1])
                                     for param in variables], 1) for idx in range(4)],
                                     axis=1, name='jac_Action_wrt_Param')[0]
+
 
 # svd for hessian pseudo inverse
 s_, U_, V_ = tf.svd(tf.matmul(tf.cholesky(tf.matrix_inverse(NOISE_COV)), J))
@@ -95,8 +96,8 @@ vp_w += DISCOUNT_VALUE**tf.cast(states_p_l, dtype='float') * value_p
 A = rf + DISCOUNT_VALUE * vf_w - vp_w
 
 # calculate gradients of A to and multiply with J (gradients of a to param)
-grads = tf.gradients(A, action_pred)[0]
-gk = tf.matmul([grads[1]], J)
+grads = tf.gradients(A, action_pred)[0].__getitem__(states_f_l)
+gk = tf.matmul([grads], J)
 
 # multiply gk with hessian pseudo inverse
 nk = tf.matmul(gk, h00_pinv)
@@ -113,7 +114,6 @@ with value_sess.as_default():
 
 with sess.as_default():
     param_update = 0
-    # Get states of branch (off policy states)
     states_f = np.random.rand(10,18)
     states_p = np.random.rand(10, 18)
 
@@ -130,7 +130,7 @@ with sess.as_default():
     noise = np.random.rand(4)*800 - 459
 
     # Feed the data to the optimization graph
-    _A, nk = sess.run([A, train_op], \
+    _A, nk, g, j, t = sess.run([A, train_op, grads, J, tf.gradients(A, [action_pred.__getitem__(T_f)])], \
             feed_dict={policy_net.input: states, \
             states_f_l: T_f, \
             states_p_l: T_p, \
@@ -138,5 +138,4 @@ with sess.as_default():
             action_noise: noise, \
             value_f: val_f, \
             value_p: val_p})
-    print(_A)
-
+    print(t)

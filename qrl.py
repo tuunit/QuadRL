@@ -117,6 +117,9 @@ def run_training(arguments):
             # Save prediction for the optimization step
             actions.append(action)
 
+            # Calculate and save cost of state
+            costs.append(cost(position, action, angular, linear))
+
             # Add PID controller outputs
             action[0] += -pitch_PID.output + yaw_PID.output
             action[1] += +roll_PID.output - yaw_PID.output
@@ -139,8 +142,6 @@ def run_training(arguments):
             # Save state vector
             states.append(state)
 
-            # Calculate and save cost of state
-            costs.append(cost(position, action, angular, linear))
 
         # Save initial trajectory to the list of the collection cycle
         trajectories.append({'level': -1, 'states': states, 'actions': actions, 'costs': costs})
@@ -187,6 +188,7 @@ def run_training(arguments):
 
                     # Save prediction for the optimization step
                     actions.append(action)
+                    _action = action
 
                     # Add PID controller outputs
                     action[0] += -pitch_PID.output + yaw_PID.output
@@ -215,7 +217,7 @@ def run_training(arguments):
                         states.append(state)
 
                         # Calculate and save cost of state
-                        costs.append(cost(position, action, angular, linear))
+                        costs.append(cost(position, _action, angular, linear))
 
                 # Save branch trajectory to the list of the collection cycle
                 trajectories.append({'level': n, 'noise': noise, 'states': states, 'actions': actions, 'costs': costs, 'position': b['position']})
@@ -257,7 +259,7 @@ def run_training(arguments):
                     loss = train_value_network(value_sess, value_net, value_traj)
                     if arguments.log:
                         value_log.write(str(loss)+'\n')
-                    if not i % 100:
+                    if not i % 10:
                         print('Value Loss:', loss)
                     if loss < VALUE_LOSS_LIMIT:
                         break;
@@ -309,7 +311,7 @@ def run_training(arguments):
 
                         states = np.concatenate((states_f, states_p))
                         junction = states_p[0]
-                        noise = trajectory['noise'] - 459
+                        noise = trajectory['noise'] - ACTION_BIAS
 
                         # Feed the data to the optimization graph
                         A, nk = policy_sess.run([policy_net.A, policy_net.train_op], \
@@ -427,7 +429,7 @@ def value_function(sess, value_net, costs, states, i):
 # Cost function as defined in formula 9
 def cost(position, action, angular, linear):
     position = 4 * 10**(-3) * np.linalg.norm(position)
-    action = 2 * 10**(-4) * np.linalg.norm(action)
+    action = (2/3.) * 10**(-5) * np.linalg.norm(action)
     angular = 3 * 10**(-4) * np.linalg.norm(angular)
     linear = 5 * 10**(-4) * np.linalg.norm(linear)
 

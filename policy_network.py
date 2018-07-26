@@ -25,7 +25,7 @@ class PolicyNet(NeuralNet):
             action_pred = self.model()
 
             # jacobian action wrt parameters
-            J = tf.stack([tf.concat([tf.reshape(tf.gradients(action_pred[:, idx], param)[0], [1, -1])
+            J = tf.stack([tf.concat([tf.reshape(tf.gradients(action_pred[:, idx].__getitem__(self.states_f_l), param), [1, -1])
                                                 for param in variables], 1) for idx in range(4)],
                                                 axis=1, name='jac_Action_wrt_Param')[0]
 
@@ -42,7 +42,7 @@ class PolicyNet(NeuralNet):
             position = 4 * 10**(-3) * tf.norm(position)
             angular = 3 * 10**(-4) * tf.norm(angular)
             linear = 5 * 10**(-4) * tf.norm(linear)
-            action = 2 * 10**(-4) * tf.norm(self.action_noise)
+            action = (2/3.) * 10**(-5) * tf.norm(self.action_noise)
 
             rf = position + action + angular + linear
 
@@ -78,8 +78,8 @@ class PolicyNet(NeuralNet):
             self.A = rf + DISCOUNT_VALUE * vf_w - vp_w
 
             # calculate gradients of A to and multiply with J (gradients of a to param)
-            grads = tf.gradients(self.A, action_pred)[0]
-            gk = tf.matmul([grads[1]], J)
+            grads = tf.gradients(self.A, action_pred)[0].__getitem__(self.states_f_l)
+            gk = tf.matmul([grads], J)
 
             # multiply gk with hessian pseudo inverse
             nk = tf.matmul(gk, h00_pinv)
