@@ -1,0 +1,41 @@
+<?xml version="1.0" ?>
+<!--Blade Nano 3D-->
+
+<opencv_storage>
+
+    <!--System-->
+    <system>"reality"</system>
+
+    <!--Marker-->
+    <marker>
+        <file>"nano3d_1"</file>
+        <calibration_offset>
+            <s>1.</s>
+            <v>0. 0. 0.</v>
+        </calibration_offset>
+    </marker>
+
+    <!--Radio-->
+    <radio>
+        <transmitter>artt</transmitter>
+        <serial_number>"75232303235351816182"</serial_number>
+        <module_id>0</module_id>
+        <file>"nano3d"</file>
+    </radio>
+
+    <!--Flight Controller-->
+    <controller>"atp_nano3d"</controller>
+
+    <!--Visualization-->
+    <visualization>
+        <!--Redundant with Simulation below-->
+        <mode>"XMode"</mode>
+        <rotor_distance>44.0</rotor_distance> <!--mm-->
+        <rpm_max>2000</rpm_max>
+        <!--Only for Visualization-->
+        <rotor_radius>25.</rotor_radius>
+        <rotor_pitch>12.</rotor_pitch>
+        <rgb>200 0 0</rgb>
+    </visualization>
+
+</opencv_storage>

@@ -114,20 +114,20 @@ def run_training(arguments):
             # Predict action with policy network
             action = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input:[state]})[0])
 
+            # Save prediction for the optimization step
+            actions.append(action)
+
             # Add PID controller outputs
             action[0] += -pitch_PID.output + yaw_PID.output
             action[1] += +roll_PID.output - yaw_PID.output
             action[2] += +pitch_PID.output + yaw_PID.output
             action[3] += -roll_PID.output - yaw_PID.output
 
-            # Save prediction for the optimization step
-            actions.append(action)
-
             # Add bias to guarantee take off
-            action = action + 459
+            action = action + ACTION_BIAS
 
             # Clip output to guarantee a realistic simulation
-            action = np.clip(action, 0, 900)
+            action = np.clip(action, 0, ACTION_MAX)
 
             # Save full pose of the Quadcopter if a junction has to be created at this point of time later on
             if b in branches:
@@ -185,20 +185,20 @@ def run_training(arguments):
                     # Predict action with policy network
                     action = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input:[state]})[0])
 
+                    # Save prediction for the optimization step
+                    actions.append(action)
+
                     # Add PID controller outputs
                     action[0] += -pitch_PID.output + yaw_PID.output
                     action[1] += +roll_PID.output - yaw_PID.output
                     action[2] += +pitch_PID.output + yaw_PID.output
                     action[3] += -roll_PID.output - yaw_PID.output
 
-                    # Save prediction for the optimization step
-                    actions.append(action)
-
                     # Add bias to guarantee take off
-                    action = action + 459
+                    action = action + ACTION_BIAS
 
                     # Clip output to guarantee a realistic simulation
-                    action = np.clip(action, 0, 900)
+                    action = np.clip(action, 0, ACTION_MAX)
 
                     if n == j:
                         # Generate noise if first state of branch
@@ -405,10 +405,10 @@ def run_test(arguments):
                 action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[state]})[0])
 
                 # Add bias to guarantee take off
-                action = action + 459
+                action = action + ACTION_BIAS
 
                 # Clip output to guarantee a realistic simulation
-                action = np.clip(action, 0, 900)
+                action = np.clip(action, 0, ACTION_MAX)
 
                 # Feed action vector to the drone
                 interface.update(list(action))

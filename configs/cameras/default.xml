@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<opencv_storage>
+<n_cameras>2</n_cameras>
+<camera_0>
+  <identifier>MQ013MG-ONV_SN_14510150</identifier>
+  <extrinsics type_id="opencv-matrix">
+    <rows>4</rows>
+    <cols>4</cols>
+    <dt>d</dt>
+    <data>
+      1. 0. 0. 0. 0. 1. 0. 0. 0. 0. 1. 0. 0. 0. 0. 1.</data></extrinsics>
+  <camera_matrix type_id="opencv-matrix">
+    <rows>3</rows>
+    <cols>3</cols>
+    <dt>d</dt>
+    <data>
+      1.2653230000000001e+03 0. 6.2587199999999996e+02 0.
+      1.2658579999999999e+03 5.1310000000000002e+02 0. 0. 1.</data></camera_matrix>
+  <distortion_coefficients type_id="opencv-matrix">
+    <rows>1</rows>
+    <cols>4</cols>
+    <dt>d</dt>
+    <data>
+      -1.9749600000000000e-01 1.2765799999999999e-01
+      1.7699999999999999e-04 -4.9200000000000003e-04</data></distortion_coefficients>
+  <sensor_width>1280</sensor_width>
+  <sensor_height>1024</sensor_height>
+  <aeag>0</aeag>
+  <exposure>5000</exposure>
+  <gain>-1.</gain>
+  <binarize_threshold>128</binarize_threshold>
+  <minimum_region_size>2</minimum_region_size></camera_0>
+<camera_1>
+  <identifier>MQ013MG-ONV_SN_39310450</identifier>
+  <extrinsics type_id="opencv-matrix">
+    <rows>4</rows>
+    <cols>4</cols>
+    <dt>d</dt>
+    <data>
+      -9.4671148109549430e-01 2.1009707353916396e-01
+      -2.4414677636679116e-01 6.1670005146831159e+02
+      -3.0125208719804991e-01 -3.0927375191446271e-01
+      9.0199868916878256e-01 -1.9676890793708387e+03
+      1.1399926298526115e-01 9.2747997245668545e-01
+      3.5607845139742467e-01 1.3007782682672389e+03 0. 0. 0. 1.</data></extrinsics>
+  <camera_matrix type_id="opencv-matrix">
+    <rows>3</rows>
+    <cols>3</cols>
+    <dt>d</dt>
+    <data>
+      1.2737520000000000e+03 0. 6.2450599999999997e+02 0.
+      1.2728460000000000e+03 5.1812699999999995e+02 0. 0. 1.</data></camera_matrix>
+  <distortion_coefficients type_id="opencv-matrix">
+    <rows>1</rows>
+    <cols>4</cols>
+    <dt>d</dt>
+    <data>
+      -2.1099699999999999e-01 1.5311600000000000e-01
+      -1.1860000000000000e-03 1.0020000000000001e-03</data></distortion_coefficients>
+  <sensor_width>1280</sensor_width>
+  <sensor_height>1024</sensor_height>
+  <aeag>0</aeag>
+  <exposure>5000</exposure>
+  <gain>-1.</gain>
+  <binarize_threshold>128</binarize_threshold>
+  <minimum_region_size>2</minimum_region_size></camera_1>
+</opencv_storage>

@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<!--Blade Glimpse-->
+
+<opencv_storage>
+
+    <!--DSMX-->
+    <frame_rate>22</frame_rate>
+    <ch1>
+        <name>throttle</name>
+        <travel>100</travel>
+        <reverse>0</reverse>
+    </ch1>
+    <ch2>
+        <name>aileron</name>
+        <travel>100</travel>
+        <reverse>0</reverse>
+    </ch2>
+    <ch3>
+        <name>elevator</name>
+        <travel>100</travel>
+        <reverse>0</reverse>
+    </ch3>
+    <ch4>
+        <name>rudder</name>
+        <travel>100</travel>
+        <reverse>0</reverse>
+    </ch4>
+    <ch5>
+        <name>gear</name>
+        <travel>100</travel>
+        <reverse>0</reverse>
+    </ch5>
+    <ch6>
+        <name>aux1</name>
+        <travel>100</travel>
+        <reverse>0</reverse>
+    </ch6>
+
+</opencv_storage>

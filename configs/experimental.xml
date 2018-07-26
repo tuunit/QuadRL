@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<!--Hummingbird X-->
+
+<opencv_storage>
+
+    <!--System-->
+    <system>"simulation"</system>
+
+    <!--Flight Controller-->
+    <controller>"hummingbird"</controller>
+
+    <!--Simulation-->
+    <simulation>"experimental"</simulation>
+
+    <!--Visualization-->
+    <visualization>
+        <!--Redundant with Simulation below-->
+        <mode>"XMode"</mode>
+        <rotor_distance>260</rotor_distance> <!--mm-->
+        <rpm_max>7800</rpm_max>
+        <k_f>2.1996e-4</k_f>
+        <!--Only for Visualization-->
+        <rotor_radius>101.6</rotor_radius>
+        <rotor_pitch>12.</rotor_pitch>
+        <rgb>0 0 0</rgb>
+    </visualization>
+
+</opencv_storage>

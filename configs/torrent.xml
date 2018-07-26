@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<!--Blade Torrent 110-->
+
+<opencv_storage>
+
+    <!--System-->
+    <system>"reality"</system>
+
+    <!--Marker-->
+    <marker>
+        <file>"torrent"</file>
+        <calibration_offset>
+            <s>1.</s>
+            <v>0. 0. 0.</v>
+        </calibration_offset>
+    </marker>
+
+    <!--Radio-->
+    <radio>
+        <transmitter>artp</transmitter>
+        <serial_number>"75439323935351F09221"</serial_number>
+        <module_id>7</module_id> <!--pins 3..7-->
+        <file>"torrent"</file>
+    </radio>
+
+    <!--Flight Controller-->
+    <controller>"atp_torrent"</controller>
+
+    <!--Visualization-->
+    <visualization>
+        <!--Redundant with Simulation below-->
+        <mode>"XMode"</mode>
+        <rotor_distance>113</rotor_distance> <!--mm-->
+        <rpm_max>7800</rpm_max>
+        <!--Only for Visualization-->
+        <rotor_radius>55.</rotor_radius>
+        <rotor_pitch>12.</rotor_pitch>
+        <rgb>0 0 0</rgb>
+    </visualization>
+
+</opencv_storage>

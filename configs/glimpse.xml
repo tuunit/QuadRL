@@ -1,0 +1,41 @@
+<?xml version="1.0" ?>
+<!--Blade Glimpse-->
+
+<opencv_storage>
+
+    <!--System-->
+    <system>"reality"</system>
+
+    <!--Marker-->
+    <marker>
+        <file>"glimpse_below"</file>
+        <calibration_offset>
+            <s>1.</s>
+            <v>0. 0. 0.</v>
+        </calibration_offset>
+    </marker>
+
+    <!--Radio-->
+    <radio>
+        <transmitter>raspberrypi</transmitter>
+        <module_id>0</module_id>
+        <serial_port>"/dev/serial0"</serial_port>
+        <file>"glimpse"</file>
+    </radio>
+
+    <!--Flight Controller-->
+    <controller>"rpi_glimpse"</controller>
+
+    <!--Visualization-->
+    <visualization>
+        <!--Redundant with Simulation below-->
+        <mode>"XMode"</mode>
+        <rotor_distance>52.5</rotor_distance> <!--mm-->
+        <rpm_max>2000</rpm_max>
+        <!--Only for Visualization-->
+        <rotor_radius>30.</rotor_radius>
+        <rotor_pitch>12.</rotor_pitch>
+        <rgb>0 0 0</rgb>
+    </visualization>
+
+</opencv_storage>
