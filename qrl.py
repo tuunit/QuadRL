@@ -30,9 +30,9 @@ def run_training(arguments):
     interface.set_timestep(TIME_STEP)
 
     # Instantiate PID controllers for nominal orientation
-    pitch_PID = PID(30, 0, 15)
-    roll_PID = PID(30, 0, 15)
-    yaw_PID = PID(7.5, 0, 3.75)
+    pitch_PID = PID(0, 0, 0)
+    roll_PID = PID(0, 0, 0)
+    yaw_PID = PID(0, 0, 0)
 
     # Instantiate policy network with own Tensorflow graph
     policy_graph = tf.Graph()
@@ -277,14 +277,14 @@ def run_training(arguments):
                 #else:
                 policy_traj = trajectories
 
-                pbar = tqdm(range(len(policy_traj)))
+                pbar = tqdm(range(len(policy_traj) - 1))
                 pbar.set_description('Optimising policy network')
 
                 param_update = 0
                 As = []
                 for i, trajectory in enumerate(policy_traj):
-                    pbar.update(1)
                     if(trajectory['level'] >= 0):
+                        pbar.update(1)
 
                         # Get states of branch (off policy states)
                         states_f = trajectory['states']
@@ -375,6 +375,7 @@ def run_test(arguments):
 
     # Instantiate publisher and subscriber for Gazebo
     interface = DroneInterface()
+    interface.set_timestep(TIME_STEP)
 
     # Initialize policy network
     policy_net = PolicyNet(shape=[18,64,64,4])
@@ -389,7 +390,7 @@ def run_test(arguments):
 
             # Generate random start position for the Quadcopter
             interface.initial_pose()
-            for _ in range(200):
+            for _ in range(500):
                 # Get state information from drone subscriber
                 orientation, position, angular, linear = interface.get_state()
 
@@ -405,12 +406,14 @@ def run_test(arguments):
 
                 # Predict action with policy network
                 action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[state]})[0])
+                print(position)
 
                 # Add bias to guarantee take off
                 action = action + ACTION_BIAS
 
                 # Clip output to guarantee a realistic simulation
                 action = np.clip(action, 0, ACTION_MAX)
+                print(action)
 
                 # Feed action vector to the drone
                 interface.update(list(action))
@@ -422,7 +425,7 @@ def value_function(sess, value_net, costs, states, i):
     T = len(costs)
     value_factor = value_net.model().eval(session=sess, feed_dict={value_net.input:[states[T-1]]})[0][0]
     for t in range(i, T):
-        v = (DISCOUNT_VALUE**(t-i) * costs[t])
+        v = DISCOUNT_VALUE**(t-i) * costs[t]
         values.append(v)
     return sum(values) + (DISCOUNT_VALUE**(T-i) * value_factor)
 

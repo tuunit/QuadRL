@@ -53,9 +53,8 @@ class PolicyNet(NeuralNet):
 
             vf_w = tf.while_loop(cf, 
                     self.gen_body(self.input[:self.states_f_l],
-                        self.states_f_l, 
                         action_pred, 
-                        self.value_f, 0), 
+                        0), 
                     [iterf, vf])[1]
             vf_w += DISCOUNT_VALUE**tf.cast(self.states_f_l, dtype='float') * self.value_f
            
@@ -66,9 +65,7 @@ class PolicyNet(NeuralNet):
 
             vp_w = tf.while_loop(cp, 
                     self.gen_body(self.input[self.states_f_l:],
-                        self.states_p_l,
                         action_pred, 
-                        self.value_p, 
                         self.states_f_l), 
                     [iterp, vp])[1]
 
@@ -87,15 +84,15 @@ class PolicyNet(NeuralNet):
             self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=1)
 
     # value function for gradient calculation in formula 5
-    def gen_body(self, states, states_l, actions, value_factor, offset):
+    def gen_body(self, states, actions, offset):
         def body(i, v):
             tmp = DISCOUNT_VALUE**tf.cast(i, dtype='float') 
             position = 4 * 10**(-3) * tf.norm(states[i][9:12])
-            action = 2 * 10**(-4) * tf.norm(actions[i+offset]) 
+            action = (2/3.) * 10**(-5) * tf.norm(actions[i+offset]) 
             linear = 3 * 10**(-4) * tf.norm(states[i][12:15]) 
             angular = 5 * 10**(-4) * tf.norm(states[i][15:18]) 
             cost = position + action + linear + angular
-            tmp = tmp + cost 
+            tmp = tmp * cost 
             v = v + tmp
             v.set_shape(tf.TensorShape([]))
             return i+1, v
