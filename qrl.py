@@ -34,6 +34,10 @@ def run_training(arguments):
     roll_PID = PID(0, 0, 0)
     yaw_PID = PID(0, 0, 0)
 
+    pitch_PID = PID(0, 0, 0)
+    roll_PID = PID(0, 0, 0)
+    yaw_PID = PID(0, 0, 0)
+
     # Instantiate policy network with own Tensorflow graph
     policy_graph = tf.Graph()
     policy_sess = tf.Session(graph=policy_graph)
@@ -159,6 +163,7 @@ def run_training(arguments):
                 interface.set_pose(b['pose'])
 
                 noise = None
+                _noise = None
                 states = []
                 actions = []
                 costs = []
@@ -205,6 +210,8 @@ def run_training(arguments):
                     if n == j:
                         # Generate noise if first state of branch
                         noise = NOISE()
+                        _noise = noise + _action
+                        noise = noise + action
                         interface.update(list(noise))
                     elif j < n:
                         # Repeat noise for previous junction trajectory states
@@ -220,7 +227,7 @@ def run_training(arguments):
                         costs.append(cost(position, _action, angular, linear))
 
                 # Save branch trajectory to the list of the collection cycle
-                trajectories.append({'level': n, 'noise': noise, 'states': states, 'actions': actions, 'costs': costs, 'position': b['position']})
+                trajectories.append({'level': n, 'noise': noise, '_noise':_noise, 'states': states, 'actions': actions, 'costs': costs, 'position': b['position']})
         pbar.close()
         del(pbar)
 
@@ -259,7 +266,7 @@ def run_training(arguments):
                     loss = train_value_network(value_sess, value_net, value_traj)
                     if arguments.log:
                         value_log.write(str(loss)+'\n')
-                    if not i % 10:
+                    if not i % 3:
                         print('Value Loss:', loss)
                     if loss < VALUE_LOSS_LIMIT:
                         break;
@@ -291,7 +298,7 @@ def run_training(arguments):
 
                         # Get previous flight states (on policy states)
                         if trajectory['level'] == 1 and i < traj_len:
-                            states_p = policy_traj[0]['states']
+                            states_p = policy_traj[0]['states'][trajectory['position']:]
                         else:
                             states_p = policy_traj[i-1]['states']
 
@@ -299,7 +306,7 @@ def run_training(arguments):
                                 continue
 
                         if len(states_p) + policy_traj[i-1]['level'] != len(states_f) + trajectory['level']:
-                            states_p = states_p[trajectory['position']:]
+                            states_p = states_p
 
                         T_f = len(states_f)
                         T_p = len(states_p)
@@ -311,7 +318,7 @@ def run_training(arguments):
 
                         states = np.concatenate((states_f, states_p))
                         junction = states_p[0]
-                        noise = trajectory['noise'] - ACTION_BIAS
+                        noise = trajectory['_noise']
 
                         # Feed the data to the optimization graph
                         A, nk = policy_sess.run([policy_net.A, policy_net.train_op], \
@@ -328,6 +335,33 @@ def run_training(arguments):
 
                         # Add up nk
                         param_update += nk[0]
+
+                        # position = junction[9:12]
+                        # angular = junction[12:15]
+                        # linear = junction[15:18]
+                        #
+                        # rf = cost(position, noise, angular, linear)
+                        # vf = 0
+                        # for x, state in enumerate(states_f):
+                        #     position = state[9:12]
+                        #     angular = state[12:15]
+                        #     linear = state[15:18]
+                        #     action = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: [state]})[0])
+                        #
+                        #     vf += (DISCOUNT_VALUE**(x+1)) * cost(position, action, angular, linear)
+                        # vf += DISCOUNT_VALUE**(T_f+1)*val_f
+                        #
+                        # vp = 0
+                        # for x, state in enumerate(states_p):
+                        #     position = state[9:12]
+                        #     angular = state[12:15]
+                        #     linear = state[15:18]
+                        #     action = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: [state]})[0])
+                        #
+                        #     vp += DISCOUNT_VALUE**(x) * cost(position, action, angular, linear)
+                        # vp += DISCOUNT_VALUE**(T_p)*val_p
+                        #
+                        # _A = (rf + vf) - vp
 
                 pbar.close()
                 del(pbar)
@@ -412,8 +446,7 @@ def run_test(arguments):
                 action = action + ACTION_BIAS
 
                 # Clip output to guarantee a realistic simulation
-                action = np.clip(action, 0, ACTION_MAX)
-                print(action)
+                #action = np.clip(action, 0, ACTION_MAX)
 
                 # Feed action vector to the drone
                 interface.update(list(action))
