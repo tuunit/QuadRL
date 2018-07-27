@@ -91,11 +91,11 @@ class PolicyNet(NeuralNet):
         def body(i, v):
             tmp = DISCOUNT_VALUE**tf.cast(i, dtype='float') 
             position = 4 * 10**(-3) * tf.norm(states[i][9:12])
-            action = 2 * 10**(-4) * tf.norm(actions[i+offset]) 
+            action = (2 / 3.) * 10 ** (-5) * tf.norm(actions[i+offset])
             linear = 3 * 10**(-4) * tf.norm(states[i][12:15]) 
             angular = 5 * 10**(-4) * tf.norm(states[i][15:18]) 
             cost = position + action + linear + angular
-            tmp = tmp + cost 
+            tmp = tmp * cost
             v = v + tmp
             v.set_shape(tf.TensorShape([]))
             return i+1, v
