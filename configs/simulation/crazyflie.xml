@@ -20,9 +20,9 @@
         <r_max>250</r_max>
         <horizon_mode>1</horizon_mode>
         <horizon_controller>
-            <kp>0.5</kp>
+            <kp>0.01</kp>
             <ki>0.0</ki>
-            <kd>0.1</kd>
+            <kd>0.005</kd>
         </horizon_controller>
         <location>0. 0. 0.</location>
     </dynamics>
