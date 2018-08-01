@@ -3,7 +3,7 @@ from constants import *
 from random import sample
 
 def NOISE(): 
-    return (np.random.normal(0, ACTION_BIAS*NOISE_STDDEV, 4) * NOISE_COV).tolist()[0]
+    return np.array((np.random.rand(4)*2 -1) * NOISE_COV)[0]
 
 def timer(x):
     hours, rem = divmod(x, 3600)

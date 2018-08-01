@@ -75,7 +75,8 @@ class PolicyNet(NeuralNet):
             self.A = rf + DISCOUNT_VALUE * vf_w - vp_w
 
             # calculate gradients of A to and multiply with J (gradients of a to param)
-            grads = tf.gradients(self.A, action_pred)[0].__getitem__(self.states_f_l)
+            #grads = tf.gradients(self.A, action_pred)[0].__getitem__(self.states_f_l)
+            grads = tf.divide(tf.multiply(self.A, (self.action_noise - action_pred.__getitem__(self.states_f_l))), tf.square(tf.norm(self.action_noise - action_pred.__getitem__(self.states_f_l))))
             gk = tf.matmul([grads], J)
 
             # multiply gk with hessian pseudo inverse

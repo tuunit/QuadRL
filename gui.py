@@ -24,6 +24,9 @@ class GUI():
         span = self.span
 
         points = np.array([ [-span,0,0], [span,0,0], [0,-span,0], [0,span,0], [0,0,0], [0,0,0] ]).T
+        points = np.dot(np.array([[0.70710678, -0.70710678, 0.],
+                               [0.70710678,  0.70710678, 0.],
+                               [0.        ,  0.        , 1.]]), points)
         points = np.dot(R,points)
 
         points[0,:] += state['position'][0]

@@ -7,15 +7,13 @@ from tqdm import tqdm
 from random import sample
 from time import (sleep, time)
 from pyquaternion import Quaternion
-
+from gui import GUI
 from constants import *
 from utils import *
 from drone_interface_icarus import DroneInterface
 from neural_network import NeuralNet
 from policy_network import PolicyNet
 from value_network import ValueNet
-
-from gui import GUI
 
 # Value function as defined in formula 4
 def value_function(sess, value_net, costs, states, i):
@@ -65,6 +63,7 @@ def run_training(arguments):
         with policy_sess.graph.as_default():
             tf.global_variables_initializer().run()
             policy_net.saver = tf.train.Saver()
+            #policy_net.saver.restore(policy_sess, 'checkpoints/policy_checkpoint_1533104227.ckpt')
 
     # Instantiate value network with own Tensorflow graph
     value_graph = tf.Graph()
@@ -75,6 +74,7 @@ def run_training(arguments):
         with value_sess.graph.as_default():
             tf.global_variables_initializer().run()
             value_net.saver = tf.train.Saver()
+            #value_net.saver.restore(value_sess, 'checkpoints/value_checkpoint_1533104227.ckpt')
 
     # List for recording trajectories
     history = []
@@ -99,6 +99,7 @@ def run_training(arguments):
 
         # Generate random target position for current training cycle
         TARGET = (np.random.randint(-10, 10), np.random.randint(-10, 10), np.random.randint(2,10))
+        TARGET = (np.random.randint(-2, 2), np.random.randint(-2, 2), 10)
         print('TARGET', TARGET)
 
         # Initialize random branch / junction points in time
@@ -142,6 +143,12 @@ def run_training(arguments):
             # Calculate and save cost of state
             costs.append(cost(position, action, angular, linear))
 
+            #if b < 20:
+            #print(position)
+            #    sleep(0.2)
+            #elif b % 100 ==0:
+            #    print(position)
+
             # Add PID controller outputs
             action[0] += -pitch_PID.output + yaw_PID.output
             action[1] += +roll_PID.output - yaw_PID.output
@@ -152,7 +159,7 @@ def run_training(arguments):
             action = action + ACTION_BIAS
 
             # Clip output to guarantee a realistic simulation
-            action = np.clip(action, 0, ACTION_MAX)
+            #action = np.clip(action, 0, ACTION_MAX)
 
             # Save full pose of the Quadcopter if a junction has to be created at this point of time later on
             if b in branches:
@@ -223,13 +230,13 @@ def run_training(arguments):
                     action = action + ACTION_BIAS
 
                     # Clip output to guarantee a realistic simulation
-                    action = np.clip(action, 0, ACTION_MAX)
+                    # action = np.clip(action, 0, ACTION_MAX)
 
                     if n == j:
                         # Generate noise if first state of branch
                         noise = NOISE()
-                        _noise = noise + _action
-                        noise = noise + action
+                        _noise = noise
+                        noise = noise + [ACTION_BIAS for _ in range(4)]
                         interface.update(list(noise))
                     elif j < n:
                         # Repeat noise for previous junction trajectory states
@@ -245,7 +252,7 @@ def run_training(arguments):
                         costs.append(cost(position, _action, angular, linear))
 
                 # Save branch trajectory to the list of the collection cycle
-                trajectories.append({'level': n, 'noise': noise, '_noise':_noise, 'states': states, 'actions': actions, 'costs': costs, 'position': b['position']})
+                trajectories.append({'level': n, 'noise': noise, '_noise': _noise, 'states': states, 'actions': actions, 'costs': costs, 'position': b['position']})
         pbar.close()
         del(pbar)
 
@@ -307,6 +314,20 @@ def run_training(arguments):
 
                 param_update = 0
                 As = []
+
+                # grads_and_vars_approx = []
+                # grads_and_vars_dummy = []
+                # epsilon = 0.01
+                # for v in tf.trainable_variables():
+                #     if len(v.shape) == 2:
+                #         limit = v.shape[0].value * v.shape[1].value
+                #     else:
+                #         limit = v.shape[0].value
+                #     grads_and_vars_approx.append(
+                #         (np.reshape(np.float32(np.array([0. for _ in range(limit)])), v.shape), v))
+                #     grads_and_vars_dummy.append(
+                #         (np.reshape(np.float32(np.array([0. for _ in range(limit)])), v.shape), v))
+
                 for i, trajectory in enumerate(policy_traj):
                     if(trajectory['level'] >= 0):
                         pbar.update(1)
@@ -315,16 +336,10 @@ def run_training(arguments):
                         states_f = trajectory['states']
 
                         # Get previous flight states (on policy states)
-                        if trajectory['level'] == 1 and i < traj_len:
+                        if trajectory['level'] == 0:
                             states_p = policy_traj[0]['states'][trajectory['position']:]
                         else:
                             states_p = policy_traj[i-1]['states']
-
-                            if i >= traj_len and (i - traj_len) % 2 == 0:
-                                continue
-
-                        if len(states_p) + policy_traj[i-1]['level'] != len(states_f) + trajectory['level']:
-                            states_p = states_p
 
                         T_f = len(states_f)
                         T_p = len(states_p)
@@ -375,11 +390,53 @@ def run_training(arguments):
                         #     angular = state[12:15]
                         #     linear = state[15:18]
                         #     action = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: [state]})[0])
-                        #
                         #     vp += DISCOUNT_VALUE**(x) * cost(position, action, angular, linear)
                         # vp += DISCOUNT_VALUE**(T_p)*val_p
                         #
                         # _A = (rf + vf) - vp
+                        #
+                        # action = np.array(
+                        #     policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: [states_p[0]]})[0])
+                        # action = (2 / 3.) * 10 ** (-5) * np.linalg.norm(action)
+                        # vp = vp - action
+                        #
+                        # for i, grad_v in enumerate(grads_and_vars_dummy):
+                        #     grad = grad_v[0]
+                        #     v = grad_v[1]
+                        #     if len(v.shape) == 2:
+                        #         for x in range(v.shape[0].value):
+                        #             for y in range(v.shape[1].value):
+                        #                 grad[x, y] = epsilon
+                        #                 policy_net.optimizer.apply_gradients(grads_and_vars_dummy)
+                        #
+                        #                 action = np.array(
+                        #                     policy_net.model().eval(session=policy_sess,
+                        #                                             feed_dict={policy_net.input: [states_p[0]]})[0])
+                        #                 action = (2 / 3.) * 10 ** (-5) * np.linalg.norm(action)
+                        #                 A_epsilon = (rf + vf) - (vp + action)
+                        #
+                        #                 grads_and_vars_approx[i][0][x, y] += (0.1/(len(policy_traj) - 1)) *(A_epsilon - _A) / epsilon
+                        #
+                        #                 grad[x, y] = -epsilon
+                        #                 policy_net.optimizer.apply_gradients(grads_and_vars_dummy)
+                        #                 grad[x, y] = 0
+                        #     else:
+                        #         for x in range(v.shape[0].value):
+                        #             grad[x] = epsilon
+                        #             policy_net.optimizer.apply_gradients(grads_and_vars_dummy)
+                        #
+                        #             action = np.array(
+                        #                 policy_net.model().eval(session=policy_sess,
+                        #                                         feed_dict={policy_net.input: [states_p[0]]})[0])
+                        #             action = (2 / 3.) * 10 ** (-5) * np.linalg.norm(action)
+                        #             A_epsilon = (rf + vf) - (vp + action)
+                        #
+                        #             grads_and_vars_approx[i][0][x] += (0.1/(len(policy_traj) - 1)) *(A_epsilon - _A) / epsilon
+                        #
+                        #             grad[x] = -epsilon
+                        #             policy_net.optimizer.apply_gradients(grads_and_vars_dummy)
+                        #             grad[x] = 0
+
 
                 pbar.close()
                 del(pbar)
@@ -403,6 +460,19 @@ def run_training(arguments):
                         limit = v.shape[0].value
                     grads_and_vars.append((np.reshape(param_update[start:start+limit], v.shape), v))
                     start = start + limit
+
+                # for i, grad_v in enumerate(grads_and_vars):
+                #     grad = grad_v[0]
+                #     v = grad_v[1]
+                #     grad2, v2 = grads_and_vars_approx[i]
+                #     if len(v.shape) == 2:
+                #         for x in range(v.shape[0].value):
+                #             for y in range(v.shape[1].value):
+                #                 print(grad[x, y], "  !=   ", grad2[x, y])
+                #     else:
+                #         for x in range(v.shape[0].value):
+                #             print(grad[x], "  !=   ", grad2[x])
+
                 policy_net.optimizer.apply_gradients(grads_and_vars)
 
         # Save current collection cycle to history
@@ -422,14 +492,14 @@ def run_training(arguments):
                 value_net.saver.save(value_sess, 'checkpoints/value_checkpoint_' + timestamp + '.ckpt')
 
 def run_test(arguments):
-    gui = GUI(0.46)
-
     # Reset Tensorflow graph
     tf.reset_default_graph()
 
     # Instantiate publisher and subscriber for Gazebo
     interface = DroneInterface()
     interface.set_timestep(TIME_STEP)
+
+    gui = GUI(0.46)
 
     # Initialize policy network
     policy_net = PolicyNet(shape=[18,64,64,4])
@@ -438,26 +508,19 @@ def run_test(arguments):
     pitch_PID = PID(0.5, 0, 0.1)
     roll_PID = PID(0.5, 0.0, 0.1)
 
-    x_PID = PID(0.072, 0, 2)
-    y_PID = PID(0.072, 0.003, 0.034)
-    z_PID = PID(0.7, 0, 0.2)
-
     with tf.Session() as sess:
-        #saver.restore(sess, arguments.test)
+        saver.restore(sess, arguments.test)
         sess.run(tf.global_variables_initializer())
 
         for _ in range(10):
-            TARGET = (np.random.randint(-10, 10), np.random.randint(-10, 10), np.random.randint(2,10))
+            TARGET = (np.random.randint(-2, 2), np.random.randint(-2, 2), 10)
             print('TARGET', TARGET)
             pitch_PID.clear()
             roll_PID.clear()
-            x_PID.clear()
-            y_PID.clear()
-            z_PID.clear()
 
             # Generate random start position for the Quadcopter
             interface.initial_pose()
-            for _ in range(500):
+            for _ in range(1024):
                 # Get state information from drone subscriber
                 orientation, position, angular, linear = interface.get_state()
 
@@ -478,19 +541,18 @@ def run_test(arguments):
 
                 # Predict action with policy network
                 action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[state]})[0])
-                #action = np.array([ACTION_BIAS, ACTION_BIAS, ACTION_BIAS, ACTION_BIAS], dtype=np.float32)
+
+                # Add PID controller outputs
+                #action[0] += -pitch_PID.output
+                #action[1] += +roll_PID.output
+                #action[2] += +pitch_PID.output
+                #action[3] += -roll_PID.output
 
                 # Add bias to guarantee take off
-                #x_PID.update(position[0])
-                #y_PID.update(position[1])
-                #z_PID.update(position[2])
-                #action[0] += -roll_PID.output + pitch_PID.output #+ z_PID.output - x_PID.output
-                #action[1] += -roll_PID.output - pitch_PID.output  #+ z_PID.output - y_PID.output
-                #action[2] += +roll_PID.output + pitch_PID.output #+ z_PID.output + x_PID.output
-                #action[3] += +roll_PID.output - pitch_PID.output  #+ z_PID.output + y_PID.output
-     
+                print(action)
+                action = action +ACTION_BIAS
+
                 # Clip output to guarantee a realistic simulation
-                action += ACTION_BIAS
                 action = np.clip(action, 0, ACTION_MAX)
 
                 # Feed action vector to the drone

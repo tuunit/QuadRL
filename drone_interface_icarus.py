@@ -52,9 +52,9 @@ class DroneInterface:
         self.reset()
         self.pose[self.position] = [np.random.normal(scale=3), np.random.normal(scale=3), np.random.rand() * 5 + 3]
 
-        x = 20#np.random.normal(scale=20)
-        y = 0#np.random.normal(scale=20)
-        z = 0#np.random.normal(scale=20)
+        x = np.random.normal(scale=20)
+        y = np.random.normal(scale=20)
+        z = np.random.normal(scale=20)
         x = Quaternion(axis=[1, 0, 0], degrees=x)
         y = Quaternion(axis=[0, 1, 0], degrees=y)
         z = Quaternion(axis=[0, 0, 1], degrees=z)
