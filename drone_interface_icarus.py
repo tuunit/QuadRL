@@ -51,6 +51,7 @@ class DroneInterface:
     def initial_pose(self):
         self.reset()
         self.pose[self.position] = [np.random.normal(scale=3), np.random.normal(scale=3), np.random.rand() * 5 + 3]
+        #self.pose[self.position] = [0, 0, 5]
 
         x = np.random.normal(scale=20)
         y = np.random.normal(scale=20)
@@ -60,3 +61,6 @@ class DroneInterface:
         z = Quaternion(axis=[0, 0, 1], degrees=z)
         orientation = x * y * z
         self.pose[self.orientation] = orientation.elements
+
+    def __del__(self):
+        qsim.release()

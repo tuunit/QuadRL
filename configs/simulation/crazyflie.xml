@@ -11,7 +11,7 @@
         <rotor_distance>0.046</rotor_distance>
         <k_f>8.93585e-7</k_f>
         <k_t>5.161e-9</k_t>
-        <rpm_min>100</rpm_min>
+        <rpm_min>0</rpm_min>
         <rpm_max>25000</rpm_max> <!--14000 rpm/V, 4.2 V--> <!--todo max measured rpm 25000, but motor tech says 12000kV * 4.2V = 50400 rpm ??-->
         <k_m_up>0.02</k_m_up>
         <k_m_dn>0.03</k_m_dn>
@@ -20,10 +20,15 @@
         <r_max>250</r_max>
         <horizon_mode>1</horizon_mode>
         <horizon_controller>
-            <kp>0.01</kp>
-            <ki>0.0</ki>
-            <kd>0.005</kd>
+            <kp>0.050</kp>
+            <ki>0.0000</ki>
+            <kd>0.002</kd>
         </horizon_controller>
+        <yaw_controller>
+            <kp>0.0050</kp>
+            <ki>0.0000</ki>
+            <kd>0.0001</kd>
+        </yaw_controller>
         <location>0. 0. 0.</location>
     </dynamics>
 
