@@ -2,7 +2,7 @@ import numpy as np
 from constants import *
 from random import sample
 
-def NOISE(): 
+def NOISE():
     return np.array((np.random.rand(4)*2 - 1) * NOISE_COV)[0]
 
 def timer(x):

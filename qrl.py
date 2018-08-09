@@ -15,6 +15,44 @@ from neural_network import NeuralNet
 from policy_network import PolicyNet
 from value_network import ValueNet
 
+# Value function as defined in formula 4
+def value_function(sess, value_net, costs, states, i):
+    values = []
+    T = len(costs)
+    value_factor = value_net.model().eval(session=sess, feed_dict={value_net.input:[states[T-1]]})[0][0]
+    for t in range(i, T-1):
+        v = DISCOUNT_VALUE**(t-i) * costs[t]
+        values.append(v)
+    return sum(values) + (DISCOUNT_VALUE**(T-(i+1)) * value_factor)
+
+def value_function_vectorized(costs, terminal_value):
+    values = [terminal_value]
+    next_value = terminal_value
+
+    for i in range(len(costs)-2, -1, -1):
+        next_value = costs[i] + DISCOUNT_VALUE*next_value
+        values.append(next_value)
+
+    return list(reversed(values))
+
+
+# Cost function as defined in formula 9
+def cost(position, action, angular, linear):
+    position = 4. * 10**(-3) * np.linalg.norm(position)
+    angular = 5. * 10**(-4) * np.linalg.norm(angular)
+    linear = 5. * 10**(-4) * np.linalg.norm(linear)
+    action = 1. * 10**(-4) * np.linalg.norm(action)
+
+    return position + action + angular + linear
+
+def train_value_network(sess, value_net, trajectories):
+    loss = 0
+    for trajectory in trajectories:
+        _, c = sess.run([value_net.train_op, value_net.loss], feed_dict={value_net.input: trajectory['states'], \
+            value_net.output: trajectory['values']})
+        loss += c
+    return loss / len(trajectories)
+
 # Main function to start the testing or training loop
 def run(arguments):
     if arguments.test:
@@ -27,13 +65,9 @@ def run_training(arguments):
     tf.reset_default_graph()
 
     # Instantiate PID controllers for nominal orientation
-    pitch_PID = PID(0, 0, 0)
-    roll_PID = PID(0, 0, 0)
-    yaw_PID = PID(0, 0, 0)
-
-    pitch_PID = PID(0, 0, 0)
-    roll_PID = PID(0, 0, 0)
-    yaw_PID = PID(0, 0, 0)
+    pitch_PID = PID(0.00072, 0, 0.2)
+    roll_PID = PID(0.00072, 0.00003, 0.00034)
+    yaw_PID = PID(0.7, 0, 0.2)
 
     # Instantiate policy network with own Tensorflow graph
     policy_graph = tf.Graph()
@@ -44,6 +78,7 @@ def run_training(arguments):
         with policy_sess.graph.as_default():
             tf.global_variables_initializer().run()
             policy_net.saver = tf.train.Saver()
+            #policy_net.saver.restore(policy_sess, 'checkpoints/policy_checkpoint_1533104227.ckpt')
 
     # Instantiate value network with own Tensorflow graph
     value_graph = tf.Graph()
@@ -54,6 +89,7 @@ def run_training(arguments):
         with value_sess.graph.as_default():
             tf.global_variables_initializer().run()
             value_net.saver = tf.train.Saver()
+            #value_net.saver.restore(value_sess, 'checkpoints/value_checkpoint_1533104227.ckpt')
 
     # List for recording trajectories
     history = []
@@ -513,25 +549,24 @@ def run_test(arguments):
     interface = DroneInterface()
     interface.set_timestep(TIME_STEP)
 
-    gui = GUI()
+    gui = GUI(0.46)
 
     # Initialize policy network
     policy_net = PolicyNet(shape=[18,64,64,4])
     saver = tf.train.Saver()
 
-    pitch_PID = PID(0.5, 0., 10)
-    roll_PID = PID(0.5, 0., 10)
-    yaw_PID = PID(0, 0, 0)
+    pitch_PID = PID(0.5, 0, 0.1)
+    roll_PID = PID(0.5, 0.0, 0.1)
+
     with tf.Session() as sess:
         saver.restore(sess, arguments.test)
+        sess.run(tf.global_variables_initializer())
 
         for _ in range(10):
             TARGET = (np.random.randint(-2, 2), np.random.randint(-2, 2), 10)
             print('TARGET', TARGET)
-
             pitch_PID.clear()
             roll_PID.clear()
-            yaw_PID.clear()
 
             # Generate random start position for the Quadcopter
             interface.initial_pose()
@@ -539,28 +574,23 @@ def run_test(arguments):
                 # Get state information from drone subscriber
                 orientation, position, angular, linear = interface.get_state()
 
+                # Calculate rotation matrix from quaternion
                 orientation = Quaternion(orientation)
-                [yaw, pitch, roll] = orientation.yaw_pitch_roll
-                pitch_PID.update(pitch)
-                roll_PID.update(roll)
-                yaw_PID.update(yaw)
+
+                state = {'position': position, 'rotation_matrix': orientation.rotation_matrix}
+
+                gui.update(state)
+
+                orientation = np.ndarray.flatten(orientation.rotation_matrix)
 
                 # Calculate relative distance to target position
                 position = tuple(np.subtract(position, TARGET))
-
-                # Calculate rotation matrix from quaternion
-                orientation = Quaternion(orientation)
-                orientation = orientation.rotation_matrix
-                gui.update(orientation, position)
-                orientation = np.ndarray.flatten(orientation)
 
                 # Concatenate all tuples to generate an input state vector for the networks
                 state = list(tuple(orientation) + position + angular + linear)
 
                 # Predict action with policy network
                 action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[state]})[0])
-
-                #action = np.array([1000., 1000., 0., 0.])
 
                 # Add PID controller outputs
                 #action[0] += -pitch_PID.output
@@ -572,46 +602,7 @@ def run_test(arguments):
                 action = 100.*action +ACTION_BIAS
 
                 # Clip output to guarantee a realistic simulation
-                #action = np.clip(action, 0, ACTION_MAX)
+                action = np.clip(action, 0, ACTION_MAX)
 
                 # Feed action vector to the drone
                 interface.update(list(action))
-            print(position)
-
-# Value function as defined in formula 4
-def value_function(sess, value_net, costs, states, i):
-    values = []
-    T = len(costs)
-    value_factor = value_net.model().eval(session=sess, feed_dict={value_net.input:[states[T-1]]})[0][0]
-    for t in range(i, T-1):
-        v = DISCOUNT_VALUE**(t-i) * costs[t]
-        values.append(v)
-    return sum(values) + (DISCOUNT_VALUE**(T-(i+1)) * value_factor)
-
-def value_function_vectorized(costs, terminal_value):
-    values = [terminal_value]
-    next_value = terminal_value
-
-    for i in range(len(costs)-2, -1, -1):
-        next_value = costs[i] + DISCOUNT_VALUE*next_value
-        values.append(next_value)
-
-    return list(reversed(values))
-
-
-# Cost function as defined in formula 9
-def cost(position, action, angular, linear):
-    position = 4. * 10**(-3) * np.linalg.norm(position)
-    angular = 5. * 10**(-4) * np.linalg.norm(angular)
-    linear = 5. * 10**(-4) * np.linalg.norm(linear)
-    action = 1. * 10**(-4) * np.linalg.norm(action)
-
-    return position + action + angular + linear
-
-def train_value_network(sess, value_net, trajectories):
-    loss = 0
-    for trajectory in trajectories:
-        _, c = sess.run([value_net.train_op, value_net.loss], feed_dict={value_net.input: trajectory['states'], \
-            value_net.output: trajectory['values']})
-        loss += c
-    return loss / len(trajectories)
