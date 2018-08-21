@@ -2,7 +2,6 @@ import os
 import pickle
 import numpy as np
 import tensorflow as tf
-from PID import PID
 from tqdm import tqdm
 from random import sample
 from time import (sleep, time)
@@ -64,11 +63,6 @@ def run_training(arguments):
     # Reset Tensorflow graph
     tf.reset_default_graph()
 
-    # Instantiate PID controllers for nominal orientation
-    pitch_PID = PID(0.00072, 0, 0.2)
-    roll_PID = PID(0.00072, 0.00003, 0.00034)
-    yaw_PID = PID(0.7, 0, 0.2)
-
     # Instantiate policy network with own Tensorflow graph
     policy_graph = tf.Graph()
     policy_sess = tf.Session(graph=policy_graph)
@@ -91,9 +85,6 @@ def run_training(arguments):
             value_net.saver = tf.train.Saver()
             #value_net.saver.restore(value_sess, 'checkpoints/value_checkpoint_1533104227.ckpt')
 
-    # List for recording trajectories
-    history = []
-
     if arguments.log:
         policy_log = open('policy_loss.txt', 'a')
         value_log = open('value_loss.txt', 'a')
@@ -106,24 +97,16 @@ def run_training(arguments):
         interface = DroneInterface()
         interface.set_timestep(TIME_STEP)
 
-        if arguments.log:
-            policy_log = open('policy_loss.txt', 'a')
-            value_log = open('value_loss.txt', 'a')
-
         # List for the trajectories of the current training cycle
         trajectories = []
 
         print('Trajectory #' + str(t+1))
 
-        # Reset simulation and PID controller
+        # Reset simulation
         interface.reset()
-        pitch_PID.clear()
-        roll_PID.clear()
-        yaw_PID.clear()
 
         # Generate random target position for current training cycle
         TARGET = (np.random.randint(-10, 10), np.random.randint(-10, 10), np.random.randint(2,10))
-        TARGET = (np.random.randint(-2, 2), np.random.randint(-2, 2), 10)
         TARGET = (0, 0 ,0)
         print('TARGET', TARGET)
 
@@ -152,10 +135,6 @@ def run_training(arguments):
 
             # Calculate rotation matrix from quaternion
             orientation = Quaternion(orientation)
-            [yaw, pitch, roll] = orientation.yaw_pitch_roll
-            pitch_PID.update(pitch)
-            roll_PID.update(roll)
-            yaw_PID.update(yaw)
 
             orientation = np.ndarray.flatten(orientation.rotation_matrix)
 
@@ -170,20 +149,8 @@ def run_training(arguments):
             # Calculate and save cost of state
             costs.append(cost(position, action, angular, linear))
 
-            #if b < 20:
-            #print(position)
-            #    sleep(0.2)
-            #elif b % 100 ==0:
-            #    print(position)
-
-            # Add PID controller outputs
-            action[0] += -pitch_PID.output + yaw_PID.output
-            action[1] += +roll_PID.output - yaw_PID.output
-            action[2] += +pitch_PID.output + yaw_PID.output
-            action[3] += -roll_PID.output - yaw_PID.output
-
             # Add bias to guarantee take off
-            action = 100.*action + ACTION_BIAS
+            action = 100. * action + ACTION_BIAS
 
             actions.append(_action)
             actions_sum += np.absolute(_action)
@@ -236,11 +203,6 @@ def run_training(arguments):
 
                     # Calculate rotation matrix from quaternion
                     orientation = Quaternion(orientation)
-                    [yaw, pitch, roll] = orientation.yaw_pitch_roll
-                    pitch_PID.update(pitch)
-                    roll_PID.update(roll)
-                    yaw_PID.update(yaw)
-
                     orientation = np.ndarray.flatten(orientation.rotation_matrix)
 
                     # Concatenate all tuples to generate an input state vector for the networks
@@ -253,14 +215,8 @@ def run_training(arguments):
                     actions.append(action)
                     _action = action
 
-                    # Add PID controller outputs
-                    action[0] += -pitch_PID.output + yaw_PID.output
-                    action[1] += +roll_PID.output - yaw_PID.output
-                    action[2] += +pitch_PID.output + yaw_PID.output
-                    action[3] += -roll_PID.output - yaw_PID.output
-
                     # Add bias to guarantee take off
-                    action = 100.*action + ACTION_BIAS
+                    action = 100. * action + ACTION_BIAS
 
                     # Clip output to guarantee a realistic simulation
                     # action = np.clip(action, 0, ACTION_MAX)
@@ -288,12 +244,6 @@ def run_training(arguments):
         pbar.close()
         del(pbar)
 
-        # Get random trajectories from the previous collection cycles
-        #random_traj = get_random_trajectories(history)
-
-        #if random_traj:
-        #    value_traj = trajectories + random_traj
-        #else:
         value_traj = trajectories
 
         # Start value network training
@@ -331,11 +281,12 @@ def run_training(arguments):
                     if arguments.log:
                         value_log.write(str(loss)+'\n')
                     if not i % 10:
-                        print('Value Loss:', loss)
+                        pbar.write("Value loss: {:.2f}".format(loss))
+                    pbar.set_postfix(loss=loss)
                     if abs(prev_loss - loss) < VALUE_LOSS_LIMIT and i != 0:
                         break;
                     prev_loss = loss
-        print('Value Loss:', loss)
+        print("Value loss: {:.2f}".format(loss))
         pbar.close()
         del(pbar)
 
@@ -344,9 +295,6 @@ def run_training(arguments):
         with policy_sess.as_default():
             with policy_graph.as_default():
                 traj_len = len(trajectories)
-                #if random_traj:
-                #    policy_traj = trajectories + random_traj
-                #else:
                 policy_traj = trajectories
 
                 pbar = tqdm(range(len(policy_traj) - 1))
@@ -403,7 +351,7 @@ def run_training(arguments):
                                 policy_net.value_f: val_f, \
                                 policy_net.value_p: val_p})
 
-                        # Save squared loss
+                        # Save loss
                         As.append(A)
 
                         # Add up nk
@@ -486,7 +434,6 @@ def run_training(arguments):
                         #             policy_net.optimizer.apply_gradients(grads_and_vars_dummy).run()
                         #             grad[x] = 0
 
-
                 pbar.close()
                 del(pbar)
 
@@ -524,9 +471,6 @@ def run_training(arguments):
 
                 policy_net.optimizer.apply_gradients(grads_and_vars).run()
 
-        # Save current collection cycle to history
-        history.append(trajectories)
-
         # Save checkpoints of the current networks
         if not os.path.exists('./checkpoints'):
                 os.makedirs('./checkpoints')
@@ -549,27 +493,25 @@ def run_test(arguments):
     interface = DroneInterface()
     interface.set_timestep(TIME_STEP)
 
-    gui = GUI(0.46)
+    gui = GUI(0.046 * 50)
+    frame_rate = 1 / 20.
 
     # Initialize policy network
     policy_net = PolicyNet(shape=[18,64,64,4])
     saver = tf.train.Saver()
 
-    pitch_PID = PID(0.5, 0, 0.1)
-    roll_PID = PID(0.5, 0.0, 0.1)
-
     with tf.Session() as sess:
-        saver.restore(sess, arguments.test)
+        if isinstance(arguments.test, str):
+            saver.restore(sess, arguments.test)
         sess.run(tf.global_variables_initializer())
 
-        for _ in range(10):
+        for _ in range(1):
             TARGET = (np.random.randint(-2, 2), np.random.randint(-2, 2), 10)
             print('TARGET', TARGET)
-            pitch_PID.clear()
-            roll_PID.clear()
 
             # Generate random start position for the Quadcopter
             interface.initial_pose()
+            frame_time = 0
             for _ in range(1024):
                 # Get state information from drone subscriber
                 orientation, position, angular, linear = interface.get_state()
@@ -579,7 +521,9 @@ def run_test(arguments):
 
                 state = {'position': position, 'rotation_matrix': orientation.rotation_matrix}
 
-                gui.update(state)
+                if frame_time - frame_rate < time():
+                    gui.update(state)
+                    frame_time = time()
 
                 orientation = np.ndarray.flatten(orientation.rotation_matrix)
 
@@ -592,14 +536,8 @@ def run_test(arguments):
                 # Predict action with policy network
                 action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[state]})[0])
 
-                # Add PID controller outputs
-                #action[0] += -pitch_PID.output
-                #action[1] += +roll_PID.output
-                #action[2] += +pitch_PID.output
-                #action[3] += -roll_PID.output
-
                 # Add bias to guarantee take off
-                action = 100.*action +ACTION_BIAS
+                action = 100. * action + ACTION_BIAS
 
                 # Clip output to guarantee a realistic simulation
                 action = np.clip(action, 0, ACTION_MAX)
