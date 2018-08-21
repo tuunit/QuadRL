@@ -1,3 +1,3 @@
 [submodule "QuadNNLearn"]
 	path = QuadNNLearn
-	url = https://szahi002@scm.mi.hs-rm.de/rhodecode/ag/vision/ICARUS/Applications/QuadNNLearn
+	url = https://scm.mi.hs-rm.de/rhodecode/ag/vision/ICARUS/Applications/QuadNNLearn
