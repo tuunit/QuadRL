@@ -44,9 +44,7 @@ class DroneInterface:
         DroneInterface._set_pid(0, pid)
         pose = qsim.update(pose.tolist(), thrusts.tolist(), DroneInterface.dt, 0)
         pid = DroneInterface._get_pid(0)
-        if pose is None:
-            print(pose)
-        else:
+        if pose:
             pose = np.array(pose, dtype=np.float64)
         return pose, pid
 
@@ -56,7 +54,7 @@ class DroneInterface:
         pose[DroneInterface.orientation] = [1.0, 0.0, 0.0, 0.0]
 
         pose[DroneInterface.position] = [np.random.normal(scale=3), np.random.normal(scale=3), np.random.rand() * 5 + 3]
-        pose[DroneInterface.position] = [0, 0, 5]
+        #pose[DroneInterface.position] = [0, 0, 5]
 
         x = np.random.normal(scale=20)
         y = np.random.normal(scale=20)
@@ -65,7 +63,7 @@ class DroneInterface:
         y = Quaternion(axis=[0, 1, 0], degrees=y)
         z = Quaternion(axis=[0, 0, 1], degrees=z)
         orientation = x * y * z
-        #self.pose[DroneInterface.orientation] = orientation.elements
+        pose[DroneInterface.orientation] = orientation.elements
         return np.float64(pose)
 
     @staticmethod
@@ -76,7 +74,6 @@ class DroneInterface:
 
 
 class Trajectory:
-
     def __init__(self):
         self.pose = DroneInterface.random_pose()
         self.pid = [0.0 for _ in range(12)]
