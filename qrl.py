@@ -125,13 +125,13 @@ def run_training(arguments):
     policy_graph = tf.Graph()
     policy_sess = tf.Session(graph=policy_graph)
 
-    policy_net = PolicyNet(shape=[18,64,64,4], graph=policy_graph)
+    policy_net = PolicyNet(shape=[18, 64, 64, 4], graph=policy_graph)
     with policy_sess.as_default():
         with policy_sess.graph.as_default():
             tf.global_variables_initializer().run()
             policy_net.saver = tf.train.Saver()
-            policy_net.saver.restore(policy_sess,
-                                     'checkpoints/policy_checkpoint_1534956695.ckpt')
+            #policy_net.saver.restore(policy_sess,
+            #                         'checkpoints/policy_checkpoint_1534956695.ckpt')
 
     # Instantiate value network with own Tensorflow graph
     value_graph = tf.Graph()
@@ -142,8 +142,8 @@ def run_training(arguments):
         with value_sess.graph.as_default():
             tf.global_variables_initializer().run()
             value_net.saver = tf.train.Saver()
-            value_net.saver.restore(value_sess,
-                                    'checkpoints/value_checkpoint_1534956695.ckpt')
+            #value_net.saver.restore(value_sess,
+            #                        'checkpoints/value_checkpoint_1534956695.ckpt')
 
     if arguments.log:
         policy_log = open('policy_loss.txt', 'a')
