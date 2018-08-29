@@ -87,15 +87,12 @@ def normalize_states_mat(states):
     return n_state
 
 
-def train_value_network(sess, value_net, trajectories):
+def train_value_network(sess, value_net, value_batch, state_batch):
     states = []
     values = []
-    for traj in trajectories:
-        states.append(normalize_state(traj['states'][0]))
-        values.append(traj['values'][0])
     values = np.array(values).reshape([-1, 1])
-    _, c = sess.run([value_net.train_op, value_net.loss], feed_dict={value_net.input: states,
-                    value_net.output: values})
+    _, c = sess.run([value_net.train_op, value_net.loss], feed_dict={value_net.input: state_batch,
+                    value_net.output: value_batch})
     return c
 
 # Main function to start the testing or training loop
@@ -115,7 +112,7 @@ def visualize(trajectories):
         mat = [state[0:3], state[3:6], state[6:9]]
         return {'position': state[9:12], 'rotation_matrix': mat}
 
-    gui = GUI(0.8)
+    gui = GUI(0.046 * 50)
     b = 1
     for i in range(len(trajectories[-1]['states']) + trajectories[-1]['position'] + trajectories[b]['level']):
         for j in range(b, len(trajectories)):
@@ -176,19 +173,20 @@ def run_training(arguments):
             value_log = open('value_loss.txt', 'a')
 
         # List for the trajectories of the current training cycle
-        trajectories = []
+        all_trajectories = []
 
         print('Trajectory #' + str(t+1))
 
         # Generate random target position for current training cycle
         TARGET = (np.random.randint(-10, 10), np.random.randint(-10, 10), np.random.randint(2, 10))
-        TARGET = np.array([0, 0, 10], dtype=np.float64)
+        TARGET = np.array([0., 0., 0.], dtype=np.float64)
 
         print('TARGET', TARGET)
 
         # Initialize random branch / junction points in time
-        branches = sorted(sample(range(INITIAL_LENGTH - BRANCH_LENGTH), BRANCHES_N))
-        branch_trajs = {'trajs': [], 'positions': []}
+        branches = sorted(np.random.randint(0, INITIAL_LENGTH-BRANCH_LENGTH, size=BRANCHES_N))
+        branch_indices = np.random.randint(0, INITIAL_N-1, size=BRANCHES_N)
+        branch_trajs = {'trajs': [], 'positions': [], 'init_trajs': []}
 
         # Temporary lists
         states = []
@@ -199,59 +197,120 @@ def run_training(arguments):
         actions_count = 0
 
         DroneInterface.init()
-        initial_traj = Trajectory()
-        initial_traj.set_pose(DroneInterface.random_pose())
+        initial_trajs = []
 
-        # Initial flight
-        for b in range(INITIAL_LENGTH):
-            # Get state information from drone subscriber
-            orientation, position, angular, linear = initial_traj.get_state()
+        for _ in range(INITIAL_N):
+            tmp = initial_traj = Trajectory()
+            tmp.set_pose(DroneInterface.random_pose())
+            initial_trajs.append(tmp)
 
-            # Calculate relative distance to target position
-            position = np.subtract(position, TARGET)
-            if b == 0:
-                print(position)
+        # Generate initial trajectories
+        pbar = tqdm(range(INITIAL_LENGTH))
+        pbar.set_description('Generating Initial Trajectories')
 
-            orientation = np.ndarray.flatten(Quaternion(orientation).rotation_matrix)
+        states_mat = []
+        actions_mat = []
+        costs_mat = []
+        states = []
+        for i, b in enumerate(initial_trajs):
+            states.append(b.get_pose_with_rotation_mat())
 
-            # Concatenate all to generate an input state vector for the networks
-            state = np.concatenate((orientation, position, angular, linear))
+        states = np.array(states)
 
-            # Predict action with policy network
-            action = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input:[normalize_state(state)]})[0], dtype=np.float64)
-            _action = action
-            # Save prediction for the optimization step
+        with multiprocessing.Pool(processes=6) as pool:
+            for j in range(0, INITIAL_LENGTH):
+                pbar.update(1)
 
-            # Calculate and save cost of state
-            costs.append(cost(position, action, angular, linear))
+                actions = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: normalize_states_mat(states)}), dtype=np.float64)
 
-            # Add bias to guarantee take off
-            action = ACTION_SCALE * action + ACTION_BIAS
+                actions_sum += np.sum(actions, axis=0)
+                actions_count += INITIAL_N
 
-            actions.append(action)
-            actions_sum += np.absolute(_action)
-            actions_count += 1
+                states_mat.append(states)
+                actions_mat.append(actions)
 
-            # Save full pose of the Quadcopter if a junction has to be created at this point of time later on
-            if b in branches:
-                for _ in range(NOISE_DEPTH):
-                    branch = initial_traj.snapshot()
-                    branch_trajs['trajs'].append(branch)
-                    branch_trajs['positions'].append(b)
+                actions_feed = ACTION_SCALE*actions + ACTION_BIAS
+                costs_mat.append(compute_cost_mat(states, actions))
 
-            # Save state vector
-            states.append(state)
+                initial_trajs = pool.map(traj_step, zip(initial_trajs, actions_feed))
+                if j in branches:
+                    for idx in range(branches.count(j)):
+                        for _ in range(NOISE_DEPTH):
+                            branch = initial_trajs[branch_indices[branches.index(j) + idx]].snapshot()
+                            branch_trajs['trajs'].append(branch)
+                            branch_trajs['positions'].append(j)
+                            branch_trajs['init_trajs'].append(branch_indices[branches.index(j) + idx])
 
-            # Feed action vector to the drone
-            initial_traj.step(action)
+                states = np.array([traj.get_pose_with_rotation_mat() for traj in initial_trajs])
 
-            if b == INITIAL_LENGTH -1:
-                terminal_value = position
-        # Save initial trajectory to the list of the collection cycle
-        trajectories.append({'level': -1, 'states': states, 'actions': actions, 'costs': costs, 'order': -1})
+        states_mat = np.array(states_mat)
+        actions_mat = np.array(actions_mat)
+        costs_mat = np.array(costs_mat)
+
+        for i in range(INITIAL_N):
+
+            actions = actions_mat[:, i]
+            states = states_mat[:, i]
+            costs = costs_mat[:, i]
+            if len(actions) != len(states) or len(states) != len(costs) or len(states) != INITIAL_LENGTH:
+                print('ERROR: Anomalous trajectory data.')
+
+            all_trajectories.append([{'level': -1, 'states': states, 'actions': actions, 'costs': costs}])
+            terminal_position = all_trajectories[0][0]['states'][0][9:12]
+        pbar.close()
+        del(pbar)
+
+
+        # # Initial flight
+        # for b in range(INITIAL_LENGTH):
+        #     # Get state information from drone subscriber
+        #     orientation, position, angular, linear = initial_traj.get_state()
+        #
+        #     # Calculate relative distance to target position
+        #     position = np.subtract(position, TARGET)
+        #     if b == 0:
+        #         print(position)
+        #
+        #     orientation = np.ndarray.flatten(Quaternion(orientation).rotation_matrix)
+        #
+        #     # Concatenate all to generate an input state vector for the networks
+        #     state = np.concatenate((orientation, position, angular, linear))
+        #
+        #     # Predict action with policy network
+        #     action = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input:[normalize_state(state)]})[0], dtype=np.float64)
+        #     _action = action
+        #     # Save prediction for the optimization step
+        #
+        #     # Calculate and save cost of state
+        #     costs.append(cost(position, action, angular, linear))
+        #
+        #     # Add bias to guarantee take off
+        #     action = ACTION_SCALE * action + ACTION_BIAS
+        #
+        #     actions.append(action)
+        #     actions_sum += np.absolute(_action)
+        #     actions_count += 1
+        #
+        #     # Save full pose of the Quadcopter if a junction has to be created at this point of time later on
+        #     if b in branches:
+        #         for _ in range(NOISE_DEPTH):
+        #             branch = initial_traj.snapshot()
+        #             branch_trajs['trajs'].append(branch)
+        #             branch_trajs['positions'].append(b)
+        #
+        #     # Save state vector
+        #     states.append(state)
+        #
+        #     # Feed action vector to the drone
+        #     initial_traj.step(action)
+        #
+        #     if b == INITIAL_LENGTH -1:
+        #         terminal_value = position
+        # # Save initial trajectory to the list of the collection cycle
+        # trajectories.append({'level': -1, 'states': states, 'actions': actions, 'costs': costs})
 
         ################################################################################################################
-        ###################################    PARALLEL SIMULATION: STARTS    ##########################################
+        ###################################    BRANCH TRAJECTORIES: STARTS    ##########################################
         ################################################################################################################
 
         # Generate branch trajectories
@@ -315,36 +374,39 @@ def run_training(arguments):
             if len(actions) != len(states) or len(states) != len(costs) or len(states) != BRANCH_LENGTH - (n + 1):
                 print('ERROR: Anomalous trajectory data.')
 
-            trajectories.append({'level': n, 'noise': noise, 'states': states, 'actions': actions, 'costs': costs, 'position': b})
+            all_trajectories[branch_trajs['init_trajs'][i]].append({'level': n, 'noise': noise, 'states': states, 'actions': actions, 'costs': costs, 'position': b})
 
         pbar.close()
         del(pbar)
 
-        #visualize(trajectories)
-        value_traj = trajectories
+        #visualize(all_trajectories[0])
 
-        # Value calculations
-        terminal_states = [normalize_state(trajectory['states'][-1]) for trajectory in value_traj]
-        terminal_values = value_net.model().eval(session=value_sess, feed_dict={value_net.input: terminal_states})
-        for i, trajectory in enumerate(value_traj):
-            trajectory['values'] = value_function_vectorized(trajectory['costs'], terminal_values[i])
-        del terminal_values
-        del terminal_states
+        for value_traj in all_trajectories:
+            # Value calculations
+            terminal_states = [normalize_state(trajectory['states'][-1]) for trajectory in value_traj]
+            terminal_values = value_net.model().eval(session=value_sess, feed_dict={value_net.input: terminal_states})
+            for i, trajectory in enumerate(value_traj):
+                trajectory['values'] = value_function_vectorized(trajectory['costs'], terminal_values[i])
+            del terminal_values
+            del terminal_states
 
 
         # Optimize value network
         pbar = tqdm(range(VALUE_ITERATIONS))
         pbar.set_description('Optimizing value network')
 
+        value_batch = [traj['values'][0] for trajectories in all_trajectories for traj in trajectories]
+        state_batch = [traj['states'][0] for trajectories in all_trajectories for traj in trajectories]
+
         with value_sess.as_default():
             with value_sess.graph.as_default():
                 for i in range(VALUE_ITERATIONS):
                     pbar.update(1)
-                    loss = train_value_network(value_sess, value_net, value_traj)
+                    loss = train_value_network(value_sess, value_net, value_batch, state_batch)
                     if arguments.log:
                         value_log.write(str(loss)+'\n')
-                    if not i % (VALUE_ITERATIONS/5):
-                        pbar.write("Value loss: {:.4f}".format(loss))
+                    #if not i % (VALUE_ITERATIONS/5):
+                    #    pbar.write("Value loss: {:.4f}".format(loss))
                     pbar.set_postfix(loss="{:.4f}".format(loss))
                     if loss <= VALUE_LOSS_LIMIT:
                         break
@@ -352,70 +414,76 @@ def run_training(arguments):
         del(pbar)
 
         # Start value network training
-        print('Value network training')
+        #print('Value network training')
 
         print('Mean Action Vector:', actions_sum / actions_count)
-        print('Terminal position for Initial Trajectory:', terminal_value, np.linalg.norm(terminal_value))
-        print('Value for Initial Trajectory:', trajectories[0]['values'][0])
-        print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(trajectories[0]['states'][0])]})[0])
+        print('Terminal position for Initial Trajectory:', terminal_position, np.linalg.norm(terminal_position))
+        print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
+        #print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(trajectories[0]['states'][0])]})[0])
 
-        # Advantages and their gradients w.r.t action computed here.
-        As = []
-        grad_As = []
-        junction_states = []
+        param_update = 0
+        loss = 0
 
-        for i, trajectory in enumerate(trajectories):
-            if trajectory['level'] >= 0:
-                vf = trajectory['values'][0]
-                noise = trajectory['noise']
+        pbar = tqdm(range(BRANCHES_N))
+        pbar.set_description('Optimising policy network')
 
-                if trajectory['level'] == 0:
-                    vp = trajectories[0]['values'][trajectory['position']]
-                    junction_state = trajectories[0]['states'][trajectory['position']]
-                    junction_action = trajectories[0]['actions'][trajectory['position']]
-                else:
-                    vp = trajectories[i - 1]['values'][0]
-                    junction_state = trajectories[i - 1]['states'][0]
-                    junction_action = trajectories[i - 1]['actions'][0]
+        for trajectories in all_trajectories:
+            # Advantages and their gradients w.r.t action computed here.
+            As = []
+            grad_As = []
+            junction_states = []
 
-                rf = cost(junction_state[9:12], noise, junction_state[12:15], junction_state[15:18])
+            for i, trajectory in enumerate(trajectories):
+                if trajectory['level'] >= 0:
+                    vf = trajectory['values'][0]
+                    noise = trajectory['noise']
 
-                As.append((rf + DISCOUNT_VALUE * vf) - vp)
-                grad_As.append(-As[-1] * (noise - junction_action) / (np.linalg.norm(noise - junction_action)))
-                junction_states.append(junction_state)
-                As[-1] = As[-1]**2
-        print('Advantage gradients calculated.')
+                    if trajectory['level'] == 0:
+                        vp = trajectories[0]['values'][trajectory['position']]
+                        junction_state = trajectories[0]['states'][trajectory['position']]
+                        junction_action = trajectories[0]['actions'][trajectory['position']]
+                    else:
+                        vp = trajectories[i - 1]['values'][0]
+                        junction_state = trajectories[i - 1]['states'][0]
+                        junction_action = trajectories[i - 1]['actions'][0]
 
-        # Optimize policy network
-        print('Policy network training')
+                    rf = cost(junction_state[9:12], noise, junction_state[12:15], junction_state[15:18])
+
+                    As.append((rf + DISCOUNT_VALUE * vf) - vp)
+                    grad_As.append(-As[-1] * (noise - junction_action) / (np.linalg.norm(noise - junction_action)))
+                    junction_states.append(junction_state)
+                    #As[-1] = As[-1]**2
+            #print('Advantage gradients calculated.')
+
+            loss += sum(As)
+            # Optimize policy network
+            #print('Policy network training')
+            with policy_sess.as_default():
+                with policy_graph.as_default():
+                    for grad, state in zip(grad_As, junction_states):
+                        pbar.update(1)
+
+                        # Feed the data to the optimization graph
+                        nk, beta= policy_sess.run([policy_net.train_op, policy_net.beta],
+                                                  feed_dict={policy_net.input: [normalize_state(state)], policy_net.action_grads: grad.reshape([1, 4])})
+
+                        learningRate = min(2300., beta[0][0])
+                        # Add up nk
+                        param_update += learningRate * nk[0]
+
+        pbar.close()
+        del (pbar)
+
+
         with policy_sess.as_default():
             with policy_graph.as_default():
-                pbar = tqdm(range(len(trajectories) - 1))
-                pbar.set_description('Optimising policy network')
-
-                param_update = 0
-
-                for grad, state in zip(grad_As, junction_states):
-                    pbar.update(1)
-
-                    # Feed the data to the optimization graph
-                    nk, beta= policy_sess.run([policy_net.train_op, policy_net.beta],
-                                              feed_dict={policy_net.input: [normalize_state(state)], policy_net.action_grads: grad.reshape([1, 4])})
-
-                    learningRate = min(23., beta[0][0])
-                    # Add up nk
-                    param_update += learningRate * nk[0]
-
-                pbar.close()
-                del(pbar)
-
                 # Apply learning rate to new update step
-                param_update = (1./(len(trajectories) - 1)) * np.array(param_update)
+                param_update = (1./(BRANCHES_N)) * np.array(param_update)
                 print('param_update:', param_update)
 
                 if arguments.log:
-                    policy_log.write(str(sum(As))+'\n')
-                print('Policy Loss:', sum(As))
+                    policy_log.write(str(loss)+'\n')
+                print('Policy Loss:', loss)
 
                 # Split update vector into parts and apply them to the Tensorflow variables
                 start = 0
