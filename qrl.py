@@ -258,7 +258,6 @@ def run_training(arguments):
         pbar.close()
         del(pbar)
 
-
         # # Initial flight
         # for b in range(INITIAL_LENGTH):
         #     # Get state information from drone subscriber
