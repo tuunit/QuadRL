@@ -28,6 +28,6 @@ class PolicyNet(NeuralNet):
 
             # multiply gk with hessian pseudo inverse
             nk = tf.matmul(h00_pinv, tf.transpose(gk))
-            self.train_op = gk
+            self.train_op = tf.transpose(nk)
             self.beta = tf.sqrt(tf.constant(14000., dtype=tf.float32) / tf.matmul(gk, nk))
             self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.)
