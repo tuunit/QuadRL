@@ -1,8 +1,8 @@
-import qsim
 from time import sleep
 from pyquaternion import Quaternion
 import numpy as np
 from queue import Queue
+from QuadSimulator import stepSim
 
 class DroneInterface:
     """ Drone Publisher to control Gazebo via ROS and send data to the simulator
@@ -41,10 +41,11 @@ class DroneInterface:
 
     @staticmethod
     def update_stateless(pose, pid, thrusts):
-        DroneInterface._set_pid(0, pid)
-        pose = qsim.update(pose.tolist(), thrusts.tolist(), DroneInterface.dt, 0)
-        pid = DroneInterface._get_pid(0)
-        if pose:
+        #DroneInterface._set_pid(0, pid)
+        pose = stepSim(pose, thrusts)
+        #qsim.update(pose.tolist(), thrusts.tolist(), DroneInterface.dt, 0)
+        #pid = DroneInterface._get_pid(0)
+        if pose is not None:
             pose = np.array(pose, dtype=np.float64)
         return pose, pid
 
@@ -69,7 +70,7 @@ class DroneInterface:
     @staticmethod
     def get_pose_with_rotation_mat(pose):
         orientation, position, angular, linear = DroneInterface.get_state(pose)
-        orientation = np.ndarray.flatten(Quaternion(orientation).rotation_matrix)
+        orientation = np.ndarray.flatten(Quaternion(orientation).rotation_matrix.transpose())
         return np.concatenate((orientation, position, angular, linear))
 
 
@@ -101,6 +102,12 @@ class Trajectory:
 
     def get_pose_with_rotation_mat(self):
         return DroneInterface.get_pose_with_rotation_mat(self.pose)
+
+    def set_pose_with_rotation_mat(self, pose):
+        rot_mat = np.array([pose[:3], pose[3:6], pose[6:9]]).transpose()
+        u, s, vt = np.linalg.svd(rot_mat)
+        rot_mat = np.matmul(u, np.matmul(np.eye(3), vt))
+        self.pose = np.concatenate((np.array(Quaternion(matrix=rot_mat).elements), pose[9:]))
 
     def step(self, thrusts):
         pose, pid = DroneInterface.update_stateless(self.pose, self.pid, thrusts)

@@ -7,6 +7,13 @@ class ValueNet(NeuralNet):
     def __init__(self, shape, graph=None):
         NeuralNet.__init__(self, shape, graph)
         with self.graph.as_default():
-            self.loss = tf.reduce_mean(tf.losses.huber_loss(predictions=self.model(),labels=self.output))
-            self.optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
-            self.train_op = self.optimizer.minimize(self.loss)
+            self.loss = tf.losses.mean_squared_error(predictions=self.model(), labels=self.output)
+            self.optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
+            grad = self.optimizer.compute_gradients(self.loss, colocate_gradients_with_ops=True)
+
+            maxnorm = tf.constant(100, dtype =tf.float32)
+            grads, variables = zip(*grad)
+            grads, gradnorm = tf.clip_by_global_norm(grads, clip_norm=maxnorm)
+            grad = zip(grads, variables)
+
+            self.train_op = self.optimizer.apply_gradients(grad)

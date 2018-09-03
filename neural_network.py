@@ -25,13 +25,13 @@ class NeuralNet:
         with self.graph.as_default():
             if not self.weights or not self.biases:
                 for i in range(len(self.shape)-1):
-                    self.weights.append( \
-                            tf.Variable(tf.random_normal( \
-                                shape=[self.shape[i], self.shape[i+1]] \
+                    self.weights.append(
+                            tf.Variable(tf.random_normal(
+                                shape=[self.shape[i], self.shape[i+1]], stddev=3e-3
                             )))
 
-                    self.biases.append(tf.Variable(tf.random_normal( \
-                                shape=[self.shape[i+1]] \
+                    self.biases.append(tf.Variable(tf.random_normal(
+                                shape=[self.shape[i+1]], stddev=3e-3
                             )))
 
             if not self.layers:

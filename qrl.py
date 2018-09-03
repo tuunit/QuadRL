@@ -45,45 +45,47 @@ def value_function(sess, value_net, costs, states, i):
     return sum(values) + (DISCOUNT_VALUE**(T-(i+1)) * value_factor)
 
 def value_function_vectorized(costs, terminal_value):
-    values = [terminal_value]
-    next_value = terminal_value
+    values = np.zeros(len(costs))
+    values[-1] = terminal_value
 
     for i in range(len(costs)-2, -1, -1):
-        next_value = costs[i] + DISCOUNT_VALUE*next_value
-        values.append(next_value)
+        values[i] = costs[i] + DISCOUNT_VALUE * values[i+1]
 
-    return list(reversed(values))
+    return values
 
 # Cost function as defined in formula 9
 def cost(position, action, angular, linear):
-    position = 4. * 10**(-3) * np.linalg.norm(position)
-    angular = 5. * 10**(-4) * np.linalg.norm(angular)
-    linear = 5. * 10**(-4) * np.linalg.norm(linear)
-    action = 1. * 10**(-4) * np.linalg.norm(action)
+    position = 4. * 10**(-3) * np.sqrt(np.linalg.norm(position))
+    angular = 5. * 10**(-5) * np.linalg.norm(angular)
+    linear = 5. * 10**(-5) * np.linalg.norm(linear)
+    action = 5. * 10**(-5) * np.linalg.norm(action)
 
     return position + action + angular + linear
 
 # Cost function as defined in formula 9
 def compute_cost_mat(states, actions):
-    position = 4. * 10**(-3) * np.linalg.norm(states[:, 9:12], axis=1)
-    angular = 5. * 10**(-4) * np.linalg.norm(states[:, 12:15], axis=1)
-    linear = 5. * 10**(-4) * np.linalg.norm(states[:, 15:18], axis=1)
-    action = 1. * 10**(-4) * np.linalg.norm(actions, axis=1)
+    position = 4. * 10**(-3) * np.sqrt(np.linalg.norm(states[:, 9:12], axis=1))
+    angular = 5. * 10**(-5) * np.linalg.norm(states[:, 12:15], axis=1)
+    linear = 5. * 10**(-5) * np.linalg.norm(states[:, 15:18], axis=1)
+    action = 5. * 10**(-5) * np.linalg.norm(actions, axis=1)
+
+    if len(action) != len(states):
+        print("Incorrect cost computation.")
 
     return position + action + angular + linear
 
 def normalize_state(state):
     n_state = np.array(state)
-    n_state[9:12] = state[9:12] / POSITION_NORM
-    n_state[12:15] = state[12:15] / ANGULAR_VEL_NORM
-    n_state[15:18] = state[15:18] / LINEAR_VEL_NORM
+    n_state[9:12] = state[9:12] * POSITION_NORM
+    n_state[12:15] = state[12:15] * ANGULAR_VEL_NORM
+    n_state[15:18] = state[15:18] * LINEAR_VEL_NORM
     return n_state
 
 def normalize_states_mat(states):
     n_state = np.array(states)
-    n_state[:, 9:12] = states[:, 9:12] / POSITION_NORM
-    n_state[:, 12:15] = states[:, 12:15] / ANGULAR_VEL_NORM
-    n_state[:, 15:18] = states[:, 15:18] / LINEAR_VEL_NORM
+    n_state[:, 9:12] = states[:, 9:12] * POSITION_NORM
+    n_state[:, 12:15] = states[:, 12:15] * ANGULAR_VEL_NORM
+    n_state[:, 15:18] = states[:, 15:18] * LINEAR_VEL_NORM
     return n_state
 
 
@@ -140,8 +142,8 @@ def run_training(arguments):
         with policy_sess.graph.as_default():
             tf.global_variables_initializer().run()
             policy_net.saver = tf.train.Saver()
-            policy_net.saver.restore(policy_sess,
-                                     'tmp/policy_checkpoint_1535554204.ckpt')
+            #policy_net.saver.restore(policy_sess,
+            #                         'tmp/policy_checkpoint_1535554204.ckpt')
 
     # Instantiate value network with own Tensorflow graph
     value_graph = tf.Graph()
@@ -152,8 +154,8 @@ def run_training(arguments):
         with value_sess.graph.as_default():
             tf.global_variables_initializer().run()
             value_net.saver = tf.train.Saver()
-            value_net.saver.restore(value_sess,
-                                    'tmp/value_checkpoint_1535554204.ckpt')
+            #value_net.saver.restore(value_sess,
+            #                        'tmp/value_checkpoint_1535554204.ckpt')
 
     if arguments.log:
         policy_log = open('policy_loss.txt', 'a')
@@ -186,13 +188,10 @@ def run_training(arguments):
         branch_indices = np.random.randint(0, INITIAL_N-1, size=BRANCHES_N)
         branch_trajs = {'trajs': [], 'positions': [], 'init_trajs': []}
 
-        # Temporary lists
-        states = []
-        actions = []
-        costs = []
-
         actions_sum = [0., 0., 0., 0.]
         actions_count = 0
+        costs_sum = 0.
+        costs_count = 0
 
         DroneInterface.init()
         initial_trajs = []
@@ -224,12 +223,10 @@ def run_training(arguments):
                 actions_sum += np.sum(actions, axis=0)
                 actions_count += INITIAL_N
 
-                states_mat.append(states)
                 actions_mat.append(actions)
+                states_mat.append(states)
 
                 actions_feed = ACTION_SCALE*actions + ACTION_BIAS
-                costs_mat.append(compute_cost_mat(states, actions))
-
                 initial_trajs = pool.map(traj_step, zip(initial_trajs, actions_feed))
                 if j in branches:
                     for idx in range(branches.count(j)):
@@ -240,6 +237,9 @@ def run_training(arguments):
                             branch_trajs['init_trajs'].append(branch_indices[branches.index(j) + idx])
 
                 states = np.array([traj.get_pose_with_rotation_mat() for traj in initial_trajs])
+                costs_mat.append(compute_cost_mat(states, actions))
+                costs_sum += sum(costs_mat[-1])
+                costs_count += len(costs_mat[-1])
 
         states_mat = np.array(states_mat)
         actions_mat = np.array(actions_mat)
@@ -330,8 +330,8 @@ def run_training(arguments):
 
                 actions = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: normalize_states_mat(states)}), dtype=np.float64)
 
-                states_mat.append(states)
                 actions_mat.append(actions)
+                states_mat.append(states)
 
                 if j < NOISE_DEPTH:
                     mask = np.array([False if (x % NOISE_DEPTH) >= j else True for x in range(BRANCHES_N * NOISE_DEPTH)])
@@ -341,20 +341,18 @@ def run_training(arguments):
                     noises = noises + actions
 
                     actions_feed = ACTION_SCALE*noises + ACTION_BIAS
-                    costs = compute_cost_mat(states, actions)
-                    costs[~mask] *= 0.
-                    costs_mat.append(costs)
 
                     mask = np.array([False if (x % NOISE_DEPTH) == j else True for x in range(BRANCHES_N * NOISE_DEPTH)])
                     noises[mask] *= 0.
                     noise_mat.append(noises)
                 else:
                     actions_feed = ACTION_SCALE*actions + ACTION_BIAS
-                    costs_mat.append(compute_cost_mat(states, actions))
 
                 branch_trajs['trajs'] = pool.map(traj_step, zip(branch_trajs['trajs'], actions_feed))
 
                 states = np.array([traj.get_pose_with_rotation_mat() for traj in branch_trajs['trajs']])
+
+                costs_mat.append(compute_cost_mat(states, actions))
 
         noise_mat = np.array(noise_mat)
         states_mat = np.array(states_mat)
@@ -393,17 +391,21 @@ def run_training(arguments):
         pbar = tqdm(range(VALUE_ITERATIONS))
         pbar.set_description('Optimizing value network')
 
-        value_batch = []
-        state_batch = []
+        value_batch = None
+        state_batch = None
         for trajectories in all_trajectories:
             for i, trajectory in enumerate(trajectories):
                 if trajectory['level'] >= 0:
-                    value_batch.append(trajectory['values'][0])
-                    state_batch.append(trajectory['states'][0])
+                    if value_batch is None:
+                        value_batch = np.array(trajectory['values'][:1])
+                        state_batch = np.array(trajectory['states'][:1])
+                    else:
+                        value_batch = np.concatenate((value_batch, trajectory['values'][:1]))
+                        state_batch = np.concatenate((state_batch, trajectory['states'][:1]))
                     
                     if trajectory['level'] == 0:
-                        value_batch.append(trajectories[0]['values'][trajectory['position']])
-                        state_batch.append(trajectories[0]['states'][trajectory['position']])
+                        value_batch = np.concatenate((value_batch, trajectories[0]['values'][trajectory['position']: trajectory['position'] + 1]))
+                        state_batch = np.concatenate((state_batch, trajectories[0]['states'][trajectory['position']: trajectory['position'] + 1]))
 
         with value_sess.as_default():
             with value_sess.graph.as_default():
@@ -427,6 +429,7 @@ def run_training(arguments):
         print('Terminal position for Initial Trajectory:', terminal_position, np.linalg.norm(terminal_position))
         print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
         print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(all_trajectories[0][0]['states'][0])]})[0])
+        print('Average cost per time step:', costs_sum / costs_count)
 
         param_update = 0
         loss = 0
@@ -485,7 +488,7 @@ def run_training(arguments):
         with policy_sess.as_default():
             with policy_graph.as_default():
                 # Apply learning rate to new update step
-                param_update = (1./(BRANCHES_N)) * np.array(param_update)
+                param_update = (1./BRANCHES_N) * np.array(param_update)
                 print('param_update:', param_update)
 
                 if arguments.log:
@@ -572,8 +575,7 @@ def run_test(arguments):
 
                 # Predict action with policy network
                 action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[normalize_state(state)]})[0])
-
-                print(action*60)
+                print(action*ACTION_SCALE)
                 # Add bias to guarantee take off
                 action = ACTION_SCALE * action + ACTION_BIAS
 
