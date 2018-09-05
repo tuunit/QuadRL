@@ -35,14 +35,14 @@ from queue import Queue
 import multiprocessing
 
 # Value function as defined in formula 4
-def value_function(sess, value_net, costs, states, i):
-    values = []
-    T = len(costs)
-    value_factor = value_net.model().eval(session=sess, feed_dict={value_net.input:[states[T-1]]})[0][0]
-    for t in range(i, T-1):
-        v = DISCOUNT_VALUE**(t-i) * costs[t]
-        values.append(v)
-    return sum(values) + (DISCOUNT_VALUE**(T-(i+1)) * value_factor)
+# def value_function(sess, value_net, costs, states, i):
+#     values = []
+#     T = len(costs)
+#     value_factor = value_net.model().eval(session=sess, feed_dict={value_net.input:[states[T-1]]})[0][0]
+#     for t in range(i, T-1):
+#         v = DISCOUNT_VALUE**(t-i) * costs[t]
+#         values.append(v)
+#     return sum(values) + (DISCOUNT_VALUE**(T-(i+1)) * value_factor)
 
 def value_function_vectorized(costs, terminal_value):
     values = np.zeros(len(costs))
@@ -69,7 +69,7 @@ def compute_cost_mat(states, actions):
     linear = 5. * 10**(-5) * np.linalg.norm(states[:, 15:18], axis=1)
     action = 5. * 10**(-5) * np.linalg.norm(actions, axis=1)
 
-    if len(action) != len(states):
+    if len(action) != len(states) or len(linear) != len(states):
         print("Incorrect cost computation.")
 
     return position + action + angular + linear
@@ -79,14 +79,14 @@ def normalize_state(state):
     n_state[9:12] = state[9:12] * POSITION_NORM
     n_state[12:15] = state[12:15] * ANGULAR_VEL_NORM
     n_state[15:18] = state[15:18] * LINEAR_VEL_NORM
-    return n_state
+    return state
 
 def normalize_states_mat(states):
     n_state = np.array(states)
     n_state[:, 9:12] = states[:, 9:12] * POSITION_NORM
     n_state[:, 12:15] = states[:, 12:15] * ANGULAR_VEL_NORM
     n_state[:, 15:18] = states[:, 15:18] * LINEAR_VEL_NORM
-    return n_state
+    return states
 
 
 def train_value_network(sess, value_net, value_batch, state_batch):
@@ -184,8 +184,8 @@ def run_training(arguments):
         print('TARGET', TARGET)
 
         # Initialize random branch / junction points in time
-        branches = sorted(np.random.randint(0, INITIAL_LENGTH-BRANCH_LENGTH, size=BRANCHES_N))
-        branch_indices = np.random.randint(0, INITIAL_N-1, size=BRANCHES_N)
+        branches = sorted(np.random.randint(0, INITIAL_LENGTH-TAIL_STEPS, size=BRANCHES_N))
+        branch_indices = np.random.randint(0, INITIAL_N, size=BRANCHES_N)
         branch_trajs = {'trajs': [], 'positions': [], 'init_trajs': []}
 
         actions_sum = [0., 0., 0., 0.]
@@ -197,7 +197,7 @@ def run_training(arguments):
         initial_trajs = []
 
         for _ in range(INITIAL_N):
-            tmp = initial_traj = Trajectory()
+            tmp = Trajectory()
             tmp.set_pose(DroneInterface.random_pose())
             initial_trajs.append(tmp)
 
@@ -227,7 +227,6 @@ def run_training(arguments):
                 states_mat.append(states)
 
                 actions_feed = ACTION_SCALE*actions + ACTION_BIAS
-                initial_trajs = pool.map(traj_step, zip(initial_trajs, actions_feed))
                 if j in branches:
                     for idx in range(branches.count(j)):
                         for _ in range(NOISE_DEPTH):
@@ -236,6 +235,7 @@ def run_training(arguments):
                             branch_trajs['positions'].append(j)
                             branch_trajs['init_trajs'].append(branch_indices[branches.index(j) + idx])
 
+                initial_trajs = pool.map(traj_step, zip(initial_trajs, actions_feed))
                 states = np.array([traj.get_pose_with_rotation_mat() for traj in initial_trajs])
                 costs_mat.append(compute_cost_mat(states, actions))
                 costs_sum += sum(costs_mat[-1])
@@ -254,7 +254,7 @@ def run_training(arguments):
                 print('ERROR: Anomalous trajectory data.')
 
             all_trajectories.append([{'level': -1, 'states': states, 'actions': actions, 'costs': costs}])
-            terminal_position = all_trajectories[0][0]['states'][-1][9:12]
+            #terminal_position = all_trajectories[0][0]['states'][-1][9:12]
         pbar.close()
         del(pbar)
 
@@ -338,9 +338,8 @@ def run_training(arguments):
                     noises = NOISE_MAT(BRANCHES_N)
                     noises = np.repeat(noises, NOISE_DEPTH, axis=0)
                     noises[mask] *= 0.
-                    noises = noises + actions
 
-                    actions_feed = ACTION_SCALE*noises + ACTION_BIAS
+                    actions_feed = ACTION_SCALE*(noises + actions) + ACTION_BIAS
 
                     mask = np.array([False if (x % NOISE_DEPTH) == j else True for x in range(BRANCHES_N * NOISE_DEPTH)])
                     noises[mask] *= 0.
@@ -363,10 +362,10 @@ def run_training(arguments):
             n = i % NOISE_DEPTH
 
             noise = noise_mat[n, i]
-            actions = actions_mat[n + 1:, i]
-            states = states_mat[n + 1:, i]
-            costs = costs_mat[n + 1:, i]
-            if len(actions) != len(states) or len(states) != len(costs) or len(states) != BRANCH_LENGTH - (n + 1):
+            actions = actions_mat[n:, i]
+            states = states_mat[n:, i]
+            costs = costs_mat[n:, i]
+            if len(actions) != len(states) or len(states) != len(costs) or len(states) != BRANCH_LENGTH - (n):
                 print('ERROR: Anomalous trajectory data.')
 
             all_trajectories[branch_trajs['init_trajs'][i]].append({'level': n, 'noise': noise, 'states': states, 'actions': actions, 'costs': costs, 'position': b})
@@ -376,6 +375,9 @@ def run_training(arguments):
 
         #visualize(all_trajectories[0])
 
+        values_sum = 0.
+        values_count = 0
+
         for value_traj in all_trajectories:
             # Value calculations
             terminal_states = [trajectory['states'][-1] for trajectory in value_traj]
@@ -383,6 +385,8 @@ def run_training(arguments):
             terminal_values[0] = value_net.model().eval(session=value_sess, feed_dict={value_net.input: normalize_states_mat(np.array(terminal_states))})[0]
             for i, trajectory in enumerate(value_traj):
                 trajectory['values'] = value_function_vectorized(trajectory['costs'], terminal_values[i][0])
+            values_sum += value_traj[0]['values'][0]
+            values_count += 1
             del terminal_values
             del terminal_states
 
@@ -397,15 +401,17 @@ def run_training(arguments):
             for i, trajectory in enumerate(trajectories):
                 if trajectory['level'] >= 0:
                     if value_batch is None:
-                        value_batch = np.array(trajectory['values'][:1])
-                        state_batch = np.array(trajectory['states'][:1])
+                        value_batch = np.array(trajectory['values'][1:2])
+                        state_batch = np.array(trajectory['states'][1:2])
                     else:
-                        value_batch = np.concatenate((value_batch, trajectory['values'][:1]))
-                        state_batch = np.concatenate((state_batch, trajectory['states'][:1]))
+                        value_batch = np.concatenate((value_batch, trajectory['values'][1:2]))
+                        state_batch = np.concatenate((state_batch, trajectory['states'][1:2]))
                     
                     if trajectory['level'] == 0:
                         value_batch = np.concatenate((value_batch, trajectories[0]['values'][trajectory['position']: trajectory['position'] + 1]))
                         state_batch = np.concatenate((state_batch, trajectories[0]['states'][trajectory['position']: trajectory['position'] + 1]))
+        if value_batch.shape[0] != BRANCHES_N * (NOISE_DEPTH + 1):
+            print("Invalid data for value network training")
 
         with value_sess.as_default():
             with value_sess.graph.as_default():
@@ -426,10 +432,11 @@ def run_training(arguments):
         #print('Value network training')
 
         print('Mean Action Vector:', actions_sum / actions_count)
-        print('Terminal position for Initial Trajectory:', terminal_position, np.linalg.norm(terminal_position))
+        #print('Terminal position for Initial Trajectory:', terminal_position, np.linalg.norm(terminal_position))
         print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
         print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(all_trajectories[0][0]['states'][0])]})[0])
         print('Average cost per time step:', costs_sum / costs_count)
+        print('Average value per initial traj:', values_sum / values_count)
 
         param_update = 0
         loss = 0
@@ -445,7 +452,7 @@ def run_training(arguments):
 
             for i, trajectory in enumerate(trajectories):
                 if trajectory['level'] >= 0:
-                    vf = trajectory['values'][0]
+                    vf = trajectory['values'][1]
                     noise = trajectory['noise']
 
                     if trajectory['level'] == 0:
@@ -453,14 +460,17 @@ def run_training(arguments):
                         junction_state = trajectories[0]['states'][trajectory['position']]
                         junction_action = trajectories[0]['actions'][trajectory['position']]
                     else:
-                        vp = trajectories[i - 1]['values'][0]
-                        junction_state = trajectories[i - 1]['states'][0]
-                        junction_action = trajectories[i - 1]['actions'][0]
+                        vp = trajectories[i - 1]['values'][1]
+                        junction_state = trajectories[i - 1]['states'][1]
+                        junction_action = trajectories[i - 1]['actions'][1]
 
-                    rf = cost(junction_state[9:12], noise, junction_state[12:15], junction_state[15:18])
+                    if len([i for i, j in zip(junction_state, trajectory['states'][0]) if abs(i - j) > 1e-4]) != 0:
+                        print("Incorrect junction pairs calculated.")
+
+                    rf = cost(junction_state[9:12], noise + junction_action, junction_state[12:15], junction_state[15:18])
 
                     As.append((rf + DISCOUNT_VALUE * vf) - vp)
-                    grad_As.append(-As[-1] * (noise - junction_action) / (np.linalg.norm(noise - junction_action)))
+                    grad_As.append(-As[-1] * noise / (np.linalg.norm(noise)))
                     junction_states.append(junction_state)
                     #As[-1] = As[-1]**2
             #print('Advantage gradients calculated.')
