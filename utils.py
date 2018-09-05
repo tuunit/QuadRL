@@ -3,10 +3,10 @@ from constants import *
 from random import sample
 
 def NOISE():
-    return np.array((np.random.rand(4)*2. - 1.) * np.float64(CHOLESKY_COV))[0]
+    return np.array((np.random.normal(0, 1, 4)*2. - 1.) * np.float64(CHOLESKY_COV))[0]
 
 def NOISE_MAT(num):
-    return np.array((np.random.rand(num, 4)*2. - 1.) * np.float64(CHOLESKY_COV))
+    return np.array((np.random.normal(0, 1, size=(num, 4))*2. - 1.) * np.float64(CHOLESKY_COV))
 
 def timer(x):
     hours, rem = divmod(x, 3600)
