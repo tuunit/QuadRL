@@ -106,7 +106,7 @@ class DroneInterface:
         pose = np.array([0.0 for _ in range(13)])
         pose[DroneInterface.orientation] = [1.0, 0.0, 0.0, 0.0]
 
-        pose[DroneInterface.position] = (np.random.rand(3) * 10) - 5
+        pose[DroneInterface.position] = np.random.normal(0, 2, 3)
         #pose[DroneInterface.position] = [0, 0, 5]
 
         x, y, z = (np.random.rand(3) * 40) - 20
@@ -114,9 +114,10 @@ class DroneInterface:
         y = Quaternion(axis=[0, 1, 0], degrees=y)
         z = Quaternion(axis=[0, 0, 1], degrees=z)
         orientation = x * y * z
-        pose[DroneInterface.orientation] = orientation.elements
-        pose[DroneInterface.linear_velocity] = (np.random.rand(3) * 20) - 10
-        pose[DroneInterface.angular_velocity] = (np.random.rand(3) * 6) - 3
+        orientation = np.random.normal(0, 1, 4)
+        pose[DroneInterface.orientation] = orientation / np.linalg.norm(orientation)
+        pose[DroneInterface.linear_velocity] = np.random.normal(0, 1, 3)
+        pose[DroneInterface.angular_velocity] = np.random.normal(0, 1, 3)
         return np.float64(pose)
 
     @staticmethod

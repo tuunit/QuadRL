@@ -17,9 +17,9 @@ ACTION_SCALE = 2.
 NOISE_COV = np.matrix([[.2, 0., 0., 0.],
                        [0., .2, 0., 0.],
                        [0., 0., .2, 0.],
-                       [0., 0., 0., .2]], dtype=np.float32)
+                       [0., 0., 0., .2]], dtype=np.float64)
 CHOLESKY_COV = np.linalg.cholesky(NOISE_COV)
 NOISE_STDDEV = 0.02
-ANGULAR_VEL_NORM = 1.
-LINEAR_VEL_NORM = 1.
-POSITION_NORM = 1.
+ANGULAR_VEL_NORM = 1/5.
+LINEAR_VEL_NORM = 1/5.
+POSITION_NORM = 1/5.

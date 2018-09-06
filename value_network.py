@@ -17,7 +17,7 @@ class ValueNet(NeuralNet):
             self.optimizer = tf.train.AdamOptimizer(learning_rate=1e-3)
             grad = self.optimizer.compute_gradients(self.loss, colocate_gradients_with_ops=True)
 
-            maxnorm = tf.constant(100, dtype =tf.float32)
+            maxnorm = tf.constant(100, dtype =tf.float64)
             grads, variables = zip(*grad)
             grads, gradnorm = tf.clip_by_global_norm(grads, clip_norm=maxnorm)
             grad = zip(grads, variables)

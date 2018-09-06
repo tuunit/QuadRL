@@ -420,8 +420,8 @@ def run_training(arguments):
                     loss = train_value_network(value_sess, value_net, value_batch, state_batch)
                     if arguments.log:
                         value_log.write(str(loss)+'\n')
-                    #if not i % (VALUE_ITERATIONS/5):
-                    #    pbar.write("Value loss: {:.4f}".format(loss))
+                    if not i % 200:
+                        pbar.write("Value loss: {:.4f}".format(loss))
                     pbar.set_postfix(loss="{:.4f}".format(loss))
                     if loss <= VALUE_LOSS_LIMIT:
                         break
@@ -437,12 +437,15 @@ def run_training(arguments):
         print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(all_trajectories[0][0]['states'][0])]})[0])
         print('Average cost per time step:', costs_sum / costs_count)
         print('Average value per initial traj:', values_sum / values_count)
+        if arguments.log:
+            policy_log.write(str(values_sum / values_count)+'\n')
 
         param_update = 0
         loss = 0
 
         pbar = tqdm(range(BRANCHES_N*NOISE_DEPTH))
         pbar.set_description('Optimising policy network')
+        betas = 0
 
         for trajectories in all_trajectories:
             # Advantages and their gradients w.r.t action computed here.
@@ -484,9 +487,11 @@ def run_training(arguments):
                         pbar.update(1)
 
                         # Feed the data to the optimization graph
-                        nk, beta= policy_sess.run([policy_net.train_op, policy_net.beta],
+                        nk, beta = policy_sess.run([policy_net.train_op, policy_net.beta],
                                                   feed_dict={policy_net.input: [normalize_state(state)], policy_net.action_grads: grad.reshape([1, 4])})
+			
 
+                        betas += beta[0][0]
                         learningRate = min(2300., beta[0][0])
                         # Add up nk
                         param_update += learningRate * nk[0]
@@ -498,11 +503,10 @@ def run_training(arguments):
         with policy_sess.as_default():
             with policy_graph.as_default():
                 # Apply learning rate to new update step
-                param_update = (1./BRANCHES_N) * np.array(param_update)
+                param_update = (1./BRANCHES_N) * np.array(param_update) / 1000.
                 print('param_update:', param_update)
+                print('betas:', betas / BRANCHES_N)
 
-                if arguments.log:
-                    policy_log.write(str(loss)+'\n')
                 print('Policy Loss:', loss)
 
                 # Split update vector into parts and apply them to the Tensorflow variables
@@ -549,9 +553,10 @@ def run_test(arguments):
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
-        if isinstance(arguments.test, str):
-            saver.restore(sess, arguments.test)
+        #if isinstance(arguments.test, str):
         sess.run(tf.global_variables_initializer())
+        saver.restore(sess, arguments.test)
+
 
         for _ in range(1):
             TARGET = (0., 0., 0.)

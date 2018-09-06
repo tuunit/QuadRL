@@ -13,8 +13,8 @@ class NeuralNet:
         self.hls = len(self.shape) - 2
 
         with self.graph.as_default():
-            self.input = tf.placeholder('float32', [None, self.shape[0]])
-            self.output = tf.placeholder('float32', [None, self.shape[-1]])
+            self.input = tf.placeholder('float64', [None, self.shape[0]])
+            self.output = tf.placeholder('float64', [None, self.shape[-1]])
 
         self.weights = list()
         self.biases = list()
@@ -27,11 +27,11 @@ class NeuralNet:
                 for i in range(len(self.shape)-1):
                     self.weights.append(
                             tf.Variable(tf.random_normal(
-                                shape=[self.shape[i], self.shape[i+1]], stddev=3e-3
+                                shape=[self.shape[i], self.shape[i+1]], stddev=3e-3, dtype=tf.float64
                             )))
 
                     self.biases.append(tf.Variable(tf.random_normal(
-                                shape=[self.shape[i+1]], stddev=3e-3
+                                shape=[self.shape[i+1]], stddev=3e-3, dtype=tf.float64
                             )))
 
             if not self.layers:

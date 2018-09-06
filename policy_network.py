@@ -12,7 +12,7 @@ class PolicyNet(NeuralNet):
             # initiliaze policy network variables
             variables = tf.trainable_variables()
 
-            self.action_grads = tf.placeholder('float32', [1, 4])
+            self.action_grads = tf.placeholder('float64', [1, 4])
             action_pred = self.model()
 
             # jacobian action wrt parameters
@@ -29,5 +29,6 @@ class PolicyNet(NeuralNet):
             # multiply gk with hessian pseudo inverse
             nk = tf.matmul(h00_pinv, tf.transpose(gk))
             self.train_op = tf.transpose(nk)
-            self.beta = tf.sqrt(tf.constant(14000., dtype=tf.float32) / tf.matmul(gk, nk))
+            self.beta = tf.sqrt(tf.constant(14000., dtype=tf.float64) / tf.matmul(gk, nk))
+            print(self.beta)
             self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.)
