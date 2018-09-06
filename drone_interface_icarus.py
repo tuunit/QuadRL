@@ -115,9 +115,11 @@ class DroneInterface:
         z = Quaternion(axis=[0, 0, 1], degrees=z)
         orientation = x * y * z
         orientation = np.random.normal(0, 1, 4)
-        pose[DroneInterface.orientation] = orientation / np.linalg.norm(orientation)
-        pose[DroneInterface.linear_velocity] = np.random.normal(0, 1, 3)
-        pose[DroneInterface.angular_velocity] = np.random.normal(0, 1, 3)
+        orientation = orientation / np.linalg.norm(orientation)
+        orientation[0] = np.abs(orientation[0])
+        pose[DroneInterface.orientation] = orientation
+        pose[DroneInterface.linear_velocity] = np.random.normal(0, 2, 3)
+        pose[DroneInterface.angular_velocity] = np.random.normal(0, 2, 3)
         return np.float64(pose)
 
     @staticmethod

@@ -143,7 +143,7 @@ def run_training(arguments):
             tf.global_variables_initializer().run()
             policy_net.saver = tf.train.Saver()
             #policy_net.saver.restore(policy_sess,
-            #                         'tmp/policy_checkpoint_1535554204.ckpt')
+                                     #'tmp/policy_checkpoint_1536238160.ckpt')
 
     # Instantiate value network with own Tensorflow graph
     value_graph = tf.Graph()
@@ -155,7 +155,7 @@ def run_training(arguments):
             tf.global_variables_initializer().run()
             value_net.saver = tf.train.Saver()
             #value_net.saver.restore(value_sess,
-            #                        'tmp/value_checkpoint_1535554204.ckpt')
+                                    #'tmp/value_checkpoint_1536238160.ckpt')
 
     if arguments.log:
         policy_log = open('policy_loss.txt', 'a')
@@ -435,7 +435,7 @@ def run_training(arguments):
         #print('Terminal position for Initial Trajectory:', terminal_position, np.linalg.norm(terminal_position))
         print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
         print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(all_trajectories[0][0]['states'][0])]})[0])
-        print('Average cost per time step:', costs_sum / costs_count)
+        print('Average cost per time step:', costs_sum / (costs_count*0.01))
         print('Average value per initial traj:', values_sum / values_count)
         if arguments.log:
             policy_log.write(str(values_sum / values_count)+'\n')
@@ -447,11 +447,12 @@ def run_training(arguments):
         pbar.set_description('Optimising policy network')
         betas = 0
 
+        As = []
+        grad_As = []
+        junction_states = []
+
         for trajectories in all_trajectories:
             # Advantages and their gradients w.r.t action computed here.
-            As = []
-            grad_As = []
-            junction_states = []
 
             for i, trajectory in enumerate(trajectories):
                 if trajectory['level'] >= 0:
@@ -470,7 +471,7 @@ def run_training(arguments):
                     if len([i for i, j in zip(junction_state, trajectory['states'][0]) if abs(i - j) > 1e-4]) != 0:
                         print("Incorrect junction pairs calculated.")
 
-                    rf = cost(junction_state[9:12], noise + junction_action, junction_state[12:15], junction_state[15:18])
+                    rf = cost(trajectory['states'][1][9:12], noise + junction_action, trajectory['states'][1][12:15], trajectory['states'][1][15:18])
 
                     As.append((rf + DISCOUNT_VALUE * vf) - vp)
                     grad_As.append(-As[-1] * noise / (np.linalg.norm(noise)))
@@ -479,22 +480,22 @@ def run_training(arguments):
             #print('Advantage gradients calculated.')
 
             loss += sum(As)
-            # Optimize policy network
-            #print('Policy network training')
-            with policy_sess.as_default():
-                with policy_graph.as_default():
-                    for grad, state in zip(grad_As, junction_states):
-                        pbar.update(1)
+        # Optimize policy network
+        #print('Policy network training')
+        with policy_sess.as_default():
+            with policy_graph.as_default():
+                for grad, state in zip(grad_As, junction_states):
+                    pbar.update(1)
 
-                        # Feed the data to the optimization graph
-                        nk, beta = policy_sess.run([policy_net.train_op, policy_net.beta],
-                                                  feed_dict={policy_net.input: [normalize_state(state)], policy_net.action_grads: grad.reshape([1, 4])})
-			
+                    # Feed the data to the optimization graph
+                    nk, beta = policy_sess.run([policy_net.train_op, policy_net.beta],
+                                              feed_dict={policy_net.input: [normalize_state(state)], policy_net.action_grads: grad.reshape([1, 4])})
+		
 
-                        betas += beta[0][0]
-                        learningRate = min(2300., beta[0][0])
-                        # Add up nk
-                        param_update += learningRate * nk[0]
+                    betas += beta[0][0]
+                    learningRate = min(2300., beta[0][0])
+                    # Add up nk
+                    param_update += learningRate * nk[0] / BRANCHES_N
 
         pbar.close()
         del (pbar)
@@ -503,7 +504,7 @@ def run_training(arguments):
         with policy_sess.as_default():
             with policy_graph.as_default():
                 # Apply learning rate to new update step
-                param_update = (1./BRANCHES_N) * np.array(param_update) / 1000.
+                param_update = -np.array(param_update)
                 print('param_update:', param_update)
                 print('betas:', betas / BRANCHES_N)
 
@@ -553,9 +554,9 @@ def run_test(arguments):
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
-        #if isinstance(arguments.test, str):
         sess.run(tf.global_variables_initializer())
-        saver.restore(sess, arguments.test)
+        if isinstance(arguments.test, str):
+            saver.restore(sess, arguments.test)
 
 
         for _ in range(1):

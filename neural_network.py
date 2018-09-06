@@ -24,15 +24,14 @@ class NeuralNet:
     def create_model(self):
         with self.graph.as_default():
             if not self.weights or not self.biases:
-                for i in range(len(self.shape)-1):
-                    self.weights.append(
-                            tf.Variable(tf.random_normal(
-                                shape=[self.shape[i], self.shape[i+1]], stddev=3e-3, dtype=tf.float64
-                            )))
+                initializer = tf.contrib.layers.xavier_initializer(dtype=tf.float64)
+                for i in range(len(self.shape)-2):
+                    self.weights.append(tf.Variable(initializer([self.shape[i], self.shape[i+1]])))
 
-                    self.biases.append(tf.Variable(tf.random_normal(
-                                shape=[self.shape[i+1]], stddev=3e-3, dtype=tf.float64
-                            )))
+                    self.biases.append(tf.Variable(initializer([self.shape[i+1]])))
+                self.weights.append(tf.Variable(tf.random_uniform(shape=[self.shape[-2], self.shape[-1]], dtype=tf.float64, minval= -float(3e-3), maxval=float(3e-3))))
+
+                self.biases.append(tf.Variable(tf.random_uniform(shape=[self.shape[-1]], dtype=tf.float64, minval= -float(3e-3), maxval=float(3e-3))))
 
             if not self.layers:
                 for i, wb in enumerate(zip(self.weights, self.biases)):
