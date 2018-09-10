@@ -79,14 +79,14 @@ def normalize_state(state):
     n_state[9:12] = state[9:12] * POSITION_NORM
     n_state[12:15] = state[12:15] * ANGULAR_VEL_NORM
     n_state[15:18] = state[15:18] * LINEAR_VEL_NORM
-    return state
+    return n_state
 
 def normalize_states_mat(states):
     n_state = np.array(states)
     n_state[:, 9:12] = states[:, 9:12] * POSITION_NORM
     n_state[:, 12:15] = states[:, 12:15] * ANGULAR_VEL_NORM
     n_state[:, 15:18] = states[:, 15:18] * LINEAR_VEL_NORM
-    return states
+    return n_state
 
 
 def train_value_network(sess, value_net, value_batch, state_batch):
@@ -420,7 +420,7 @@ def run_training(arguments):
                     loss = train_value_network(value_sess, value_net, value_batch, state_batch)
                     if arguments.log:
                         value_log.write(str(loss)+'\n')
-                    if not i % 200:
+                    if not i % 99:
                         pbar.write("Value loss: {:.4f}".format(loss))
                     pbar.set_postfix(loss="{:.4f}".format(loss))
                     if loss <= VALUE_LOSS_LIMIT:
@@ -591,7 +591,6 @@ def run_test(arguments):
 
                 # Predict action with policy network
                 action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[normalize_state(state)]})[0])
-                print(action*ACTION_SCALE)
                 # Add bias to guarantee take off
                 action = ACTION_SCALE * action + ACTION_BIAS
 

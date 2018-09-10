@@ -3,58 +3,6 @@ from time import sleep
 from pyquaternion import Quaternion
 import numpy as np
 from queue import Queue
-from QuadSimulator import stepSim
-
-def rotMatToQuat(R):
-    quat = [0., 0., 0., 0.]
-    trace = sum([R[i, i] for i in range(R.shape[0])])
-    if trace > 0.0:
-        S = np.sqrt(trace + 1.0) * 2.0
-        quat[0] = 0.25 * S
-        quat[1] = (R[2, 1] - R[1, 2]) / S
-        quat[2] = (R[0, 2] - R[2, 0]) / S
-        quat[3] = (R[1, 0] - R[0, 1]) / S
-    elif (R[0, 0] > R[1, 1]) & (R[0, 0] > R[2, 2]):
-        S = np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2]) * 2.0
-        quat[0] = (R(2, 1) - R(1, 2)) / S
-        quat[1] = 0.25 * S
-        quat[2] = (R[0, 1] + R[1, 0]) / S
-        quat[3] = (R[0, 2] + R[2, 0]) / S
-    elif R(1, 1) > R(2, 2):
-        S = np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2]) * 2.0
-        quat[0] = (R[0, 2] - R[2, 0]) / S
-        quat[1] = (R[0, 1] + R[1, 0]) / S
-        quat[2] = 0.25 * S
-        quat[3] = (R(1, 2) + R(2, 1)) / S
-    else:
-        S = np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1]) * 2.0
-        quat[0] = (R[1, 0] - R[0, 1]) / S
-        quat[1] = (R[0, 2] + R[2, 0]) / S
-        quat[2] = (R[1, 2] + R[2, 1]) / S
-        quat[3] = 0.25 * S
-    return quat
-
-def quatToRotMat(q):
-    R = np.array(
-        [
-            [
-                q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3],
-                2 * q[1] * q[2] - 2 * q[0] * q[3],
-                2 * q[0] * q[2] + 2 * q[1] * q[3]
-            ],
-            [
-                2 * q[0] * q[3] + 2 * q[1] * q[2],
-                q[0] * q[0] - q[1] * q[1] + q[2] * q[2] - q[3] * q[3],
-                2 * q[2] * q[3] - 2 * q[0] * q[1]
-            ],
-            [
-                2 * q[1] * q[3] - 2 * q[0] * q[2],
-                2 * q[0] * q[1] + 2 * q[2] * q[3],
-                q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]
-            ]
-        ]
-    )
-    return R
 
 class DroneInterface:
     """ Drone Publisher to control Gazebo via ROS and send data to the simulator
@@ -93,10 +41,9 @@ class DroneInterface:
 
     @staticmethod
     def update_stateless(pose, pid, thrusts):
-        #DroneInterface._set_pid(0, pid)
-        #pose = stepSim(pose, thrusts)
+        DroneInterface._set_pid(0, pid)
         pose = qsim.update(pose.tolist(), thrusts.tolist(), DroneInterface.dt, 0)
-        #pid = DroneInterface._get_pid(0)
+        pid = DroneInterface._get_pid(0)
         if pose is not None:
             pose = np.array(pose, dtype=np.float64)
         return pose, pid
@@ -125,7 +72,7 @@ class DroneInterface:
     @staticmethod
     def get_pose_with_rotation_mat(pose):
         orientation, position, angular, linear = DroneInterface.get_state(pose)
-        orientation = np.ndarray.flatten(np.array(quatToRotMat(orientation)).transpose())
+        orientation = np.ndarray.flatten(Quaternion(orientation).rotation_matrix.transpose())
         return np.concatenate((orientation, position, angular, linear))
 
 
@@ -157,13 +104,6 @@ class Trajectory:
 
     def get_pose_with_rotation_mat(self):
         return DroneInterface.get_pose_with_rotation_mat(self.pose)
-
-    def set_pose_with_rotation_mat(self, pose):
-        rot_mat = np.array([pose[:3], pose[3:6], pose[6:9]]).transpose()
-        #u, s, vt = np.linalg.svd(rot_mat)
-        #rot_mat = np.matmul(u, np.matmul(np.eye(3), vt))
-
-        self.pose = np.concatenate((np.array(rotMatToQuat(rot_mat)), pose[9:]))
 
     def step(self, thrusts):
         pose, pid = DroneInterface.update_stateless(self.pose, self.pid, thrusts)
