@@ -33,15 +33,6 @@ import simulation as sim
 from utils import *
 from visualizer import Visualizer
 
-def value_function_vectorized(costs, terminal_value):
-    values = np.zeros(len(costs))
-    values[-1] = terminal_value
-
-    for i in range(len(costs)-2, -1, -1):
-        values[i] = costs[i] + Config.DISCOUNT_VALUE * values[i+1]
-
-    return values
-
 # Cost function as defined in formula 9
 def cost(position, action, angular, linear):
     position = 4. * 10**(-3) * np.sqrt(np.linalg.norm(position))
@@ -63,24 +54,13 @@ def compute_cost_mat(states, actions):
 
     return position + action + angular + linear
 
-def normalize_state(state):
-    n_state = np.array(state)
-    n_state[9:12] = state[9:12] * Config.POSITION_NORM
-    n_state[12:15] = state[12:15] * Config.ANGULAR_VEL_NORM
-    n_state[15:18] = state[15:18] * Config.LINEAR_VEL_NORM
-    return n_state
-
-def normalize_states_mat(states):
-    n_state = np.array(states)
-    n_state[:, 9:12] = states[:, 9:12] * Config.POSITION_NORM
-    n_state[:, 12:15] = states[:, 12:15] * Config.ANGULAR_VEL_NORM
-    n_state[:, 15:18] = states[:, 15:18] * Config.LINEAR_VEL_NORM
-    return n_state
-
 def train_value_network(sess, value_net, value_batch, state_batch):
     value_batch = np.array(value_batch).reshape([-1, 1])
-    _, c = sess.run([value_net.train_op, value_net.loss], feed_dict={value_net.input: normalize_states_mat(np.array(state_batch)),
-                    value_net.output: value_batch})
+    _, c = sess.run([value_net.train_op, value_net.loss], 
+                    feed_dict = {
+                        value_net.input: Utils.normalize_states(state_batch),
+                        value_net.output: value_batch
+                    })
     return c
 
 # Main function to start the testing or training loop
@@ -123,9 +103,12 @@ def run_training(arguments):
 
     # Instantiate policy network with own Tensorflow graph
     policy_graph = tf.Graph()
-    policy_sess = tf.Session(graph=policy_graph)
+    policy_sess = tf.Session(graph = policy_graph)
 
-    policy_net = nn.PolicyNet(shape=[18, 64, 64, 4], noise_cov=Config.NOISE_COV, graph=policy_graph)
+    policy_net = nn.PolicyNet(shape = Config.POLICY_SHAPE,
+                              noise_cov = Config.NOISE_COV,
+                              graph = policy_graph)
+
     with policy_sess.as_default():
         with policy_sess.graph.as_default():
             tf.global_variables_initializer().run()
@@ -135,7 +118,9 @@ def run_training(arguments):
     value_graph = tf.Graph()
     value_sess = tf.Session(graph=value_graph)
 
-    value_net = nn.ValueNet(shape=[18, 64, 64, 1], graph=value_graph)
+    value_net = nn.ValueNet(shape = Config.VALUE_SHAPE,
+                            graph = value_graph)
+
     with value_sess.as_default():
         with value_sess.graph.as_default():
             tf.global_variables_initializer().run()
@@ -158,15 +143,13 @@ def run_training(arguments):
 
         print('Trajectory #' + str(t+1))
 
-        # Generate random target position for current training cycle
-        TARGET = (np.random.randint(-10, 10), np.random.randint(-10, 10), np.random.randint(2, 10))
-        TARGET = np.array([0., 0., 0.], dtype=np.float64)
-
-        print('TARGET', TARGET)
-
         # Initialize random branch / junction points in time
-        branches = sorted(np.random.randint(0, Config.INITIAL_LENGTH-Config.TAIL_STEPS, size=Config.BRANCHES_N))
-        branch_indices = np.random.randint(0, Config.INITIAL_N, size=Config.BRANCHES_N)
+        branches = sorted(np.random.randint(
+                            0, Config.INITIAL_LENGTH - Config.TAIL_STEPS, 
+                            size=Config.BRANCHES_N))
+        branch_indices = np.random.randint(
+                            0, Config.INITIAL_N,
+                            size=Config.BRANCHES_N)
         branch_trajs = {'trajs': [], 'positions': [], 'init_trajs': []}
 
         actions_sum = [0., 0., 0., 0.]
@@ -199,7 +182,7 @@ def run_training(arguments):
             for j in range(0, Config.INITIAL_LENGTH):
                 pbar.update(1)
 
-                actions = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: normalize_states_mat(states)}), dtype=np.float64)
+                actions = Utils.forward(policy_sess, policy_net, states)
 
                 actions_sum += np.sum(actions, axis=0)
                 actions_sum_abs += np.sum(actions, axis=0)
@@ -258,14 +241,14 @@ def run_training(arguments):
             for j in range(0, Config.BRANCH_LENGTH):
                 pbar.update(1)
 
-                actions = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: normalize_states_mat(states)}), dtype=np.float64)
+                actions = Utils.forward(policy_sess, policy_net, states)
 
                 actions_mat.append(actions)
                 states_mat.append(states)
 
                 if j < Config.NOISE_DEPTH:
                     mask = np.array([False if (x % Config.NOISE_DEPTH) >= j else True for x in range(Config.BRANCHES_N * Config.NOISE_DEPTH)])
-                    noises = NOISE_MAT(Config.BRANCHES_N)
+                    noises = Utils.noise(Config.BRANCHES_N)
                     noises = np.repeat(noises, Config.NOISE_DEPTH, axis=0)
                     noises[mask] *= 0.
 
@@ -312,9 +295,10 @@ def run_training(arguments):
             # Value calculations
             terminal_states = [trajectory['states'][-1] for trajectory in value_traj]
             terminal_values = np.array([[0.] for _ in range (len(terminal_states))])
-            terminal_values[0] = value_net.model().eval(session=value_sess, feed_dict={value_net.input: normalize_states_mat(np.array(terminal_states))})[0]
+            terminal_values[0] = Utils.forward(value_sess, value_net, terminal_states)[0]
+
             for i, trajectory in enumerate(value_traj):
-                trajectory['values'] = value_function_vectorized(trajectory['costs'], terminal_values[i][0])
+                trajectory['values'] = Utils.value_function_vectorized(trajectory['costs'], terminal_values[i][0])
             values_sum += value_traj[0]['values'][0]
             values_count += 1
             del terminal_values
@@ -417,12 +401,16 @@ def run_training(arguments):
                     pbar.update(1)
 
                     # Feed the data to the optimization graph
-                    nk, beta = policy_sess.run([policy_net.train_op, policy_net.beta],
-                                              feed_dict={policy_net.input: [normalize_state(state)], policy_net.action_grads: grad.reshape([1, 4])})
-		
-
-                    betas += beta[0][0]
-                    learningRate = min(2300., beta[0][0])
+                    nk, beta = policy_sess.run(
+                                    [policy_net.train_op, 
+                                     policy_net.beta],
+                                    feed_dict = {
+                                        policy_net.input: Utils.normalize_states([state]),
+                                        policy_net.action_grads: grad.reshape([1, 4])
+                                    })
+                    beta = beta[0][0]
+                    betas += beta
+                    learningRate = min(2300., beta)
                     # Add up nk
                     param_update += learningRate * nk[0] / Config.BRANCHES_N
 
@@ -476,10 +464,10 @@ def run_test(arguments):
     traj = sim.Trajectory()
 
     visualizer = Visualizer(0.046 * 50)
-    frame_rate = 1 / 20.
+    refresh_rate = 1 / 20.
 
     # Initialize policy network
-    policy_net = nn.NeuralNet(shape=[18,64,64,4])
+    policy_net = nn.NeuralNet(shape = Config.POLICY_SHAPE)
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
@@ -492,7 +480,7 @@ def run_test(arguments):
             # Generate random start position for the Quadcopter
             traj.set_pose(sim.Interface.random_pose())
 
-            frame_time = 0
+            refresh_time = 0
 
             for _ in range(512):
                 # Get state information from drone subscriber
@@ -503,9 +491,9 @@ def run_test(arguments):
 
                 state = {'position': position, 'rotation_matrix': orientation.rotation_matrix}
 
-                if frame_time - frame_rate < time():
+                if refresh_time - refresh_rate < time():
                     visualizer.update(state, 0)
-                    frame_time = time()
+                    refresh_time = time()
 
                 orientation = np.ndarray.flatten(orientation.rotation_matrix)
 
@@ -516,10 +504,9 @@ def run_test(arguments):
                 state = np.concatenate((orientation, position, angular, linear))
 
                 # Predict action with policy network
-                action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[normalize_state(state)]})[0])
-                # Add bias to guarantee take off
+                action = Utils.forward(sess, policy_net, [state])[0]
+
                 action = Config.ACTION_SCALE * action + Config.ACTION_BIAS
-                print(action)
 
                 #action = np.clip(action, 0, ACTION_MAX)
 
