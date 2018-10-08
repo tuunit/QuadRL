@@ -21,6 +21,7 @@ import pickle
 import numpy as np
 import multiprocessing
 import tensorflow as tf
+from glob import glob
 from tqdm import tqdm
 from time import time
 from queue import Queue
@@ -46,7 +47,7 @@ def cost(position, action, angular, linear):
     position = 4. * 10**(-3) * np.sqrt(np.linalg.norm(position))
     angular = 5. * 10**(-5) * np.linalg.norm(angular)
     linear = 5. * 10**(-5) * np.linalg.norm(linear)
-    action = 5. * 10**(-5) * np.linalg.norm(action)
+    action = 5. * 10**(-4) * np.linalg.norm(action)
 
     return position + action + angular + linear
 
@@ -55,7 +56,7 @@ def compute_cost_mat(states, actions):
     position = 4. * 10**(-3) * np.sqrt(np.linalg.norm(states[:, 9:12], axis=1))
     angular = 5. * 10**(-5) * np.linalg.norm(states[:, 12:15], axis=1)
     linear = 5. * 10**(-5) * np.linalg.norm(states[:, 15:18], axis=1)
-    action = 5. * 10**(-5) * np.linalg.norm(actions, axis=1)
+    action = 5. * 10**(-4) * np.linalg.norm(actions, axis=1)
 
     if len(action) != len(states) or len(linear) != len(states):
         print("Incorrect cost computation.")
@@ -124,25 +125,27 @@ def run_training(arguments):
     policy_graph = tf.Graph()
     policy_sess = tf.Session(graph=policy_graph)
 
-    policy_net = nn.PolicyNet(shape=[18, 64, 64, 4], noise_cov=Config.NOISE_COV, graph=policy_graph)
+    policy_net = nn.PolicyNet(shape=[18, 128, 128, 4], noise_cov=Config.NOISE_COV, graph=policy_graph)
     with policy_sess.as_default():
         with policy_sess.graph.as_default():
             tf.global_variables_initializer().run()
             policy_net.saver = tf.train.Saver()
-            #policy_net.saver.restore(policy_sess,
-                                     #'tmp/policy_checkpoint_1536238160.ckpt')
+            if arguments.restore:
+                policy_net.saver.restore(policy_sess,
+                                        sorted(glob("tmp/policy_*"))[-1][:-5])
 
     # Instantiate value network with own Tensorflow graph
     value_graph = tf.Graph()
     value_sess = tf.Session(graph=value_graph)
 
-    value_net = nn.ValueNet(shape=[18, 64, 64, 1], graph=value_graph)
+    value_net = nn.ValueNet(shape=[18, 128, 128, 1], graph=value_graph)
     with value_sess.as_default():
         with value_sess.graph.as_default():
             tf.global_variables_initializer().run()
             value_net.saver = tf.train.Saver()
-            #value_net.saver.restore(value_sess,
-                                    #'tmp/value_checkpoint_1536238160.ckpt')
+            if arguments.restore:
+                value_net.saver.restore(value_sess,
+                                        sorted(glob("tmp/value_*"))[-1][:-5])
 
     if arguments.log:
         policy_log = open('policy_loss.txt', 'a')
@@ -173,6 +176,7 @@ def run_training(arguments):
         branch_trajs = {'trajs': [], 'positions': [], 'init_trajs': []}
 
         actions_sum = [0., 0., 0., 0.]
+        actions_sum_abs = [0., 0., 0., 0.]
         actions_count = 0
         costs_sum = 0.
         costs_count = 0
@@ -204,6 +208,7 @@ def run_training(arguments):
                 actions = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: normalize_states_mat(states)}), dtype=np.float64)
 
                 actions_sum += np.sum(actions, axis=0)
+                actions_sum_abs += np.sum(np.abs(actions), axis=0)
                 actions_count += Config.INITIAL_N
 
                 actions_mat.append(actions)
@@ -362,14 +367,15 @@ def run_training(arguments):
         # Start value network training
         #print('Value network training')
 
-        print('Mean Action Vector:', actions_sum / actions_count)
+        print('Mean Action    :', actions_sum / actions_count)
+        print('Mean Action ABS:', actions_sum_abs / actions_count)
         #print('Terminal position for Initial Trajectory:', terminal_position, np.linalg.norm(terminal_position))
-        print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
-        print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(all_trajectories[0][0]['states'][0])]})[0])
+        #print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
+        #print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(all_trajectories[0][0]['states'][0])]})[0])
         print('Average cost per time step:', costs_sum / (costs_count*0.01))
-        print('Average value per initial traj:', values_sum / values_count)
+        #print('Average value per initial traj:', values_sum / values_count)
         if arguments.log:
-            policy_log.write(str(values_sum / values_count)+'\n')
+            policy_log.write(str(costs_sum / (costs_count*0.01))+'\n')
 
         param_update = 0
         loss = 0
@@ -479,7 +485,7 @@ def run_test(arguments):
     frame_rate = 1 / 20.
 
     # Initialize policy network
-    policy_net = nn.NeuralNet(shape=[18,64,64,4])
+    policy_net = nn.NeuralNet(shape=[18, 128, 128,4])
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
@@ -519,6 +525,7 @@ def run_test(arguments):
                 action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[normalize_state(state)]})[0])
                 # Add bias to guarantee take off
                 action = Config.ACTION_SCALE * action + Config.ACTION_BIAS
+                print(action)
 
                 #action = np.clip(action, 0, ACTION_MAX)
 
