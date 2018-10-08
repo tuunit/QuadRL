@@ -44,23 +44,23 @@ class IcarusInterface:
 
     @staticmethod
     def set_timestep(dt):
-        DroneInterface.dt = dt
+        IcarusInterface.dt = dt
 
     @staticmethod
     def get_state(pose):
-        return pose[DroneInterface.orientation], pose[DroneInterface.position], \
-               pose[DroneInterface.angular_velocity], pose[DroneInterface.linear_velocity]
+        return pose[IcarusInterface.orientation], pose[IcarusInterface.position], \
+               pose[IcarusInterface.angular_velocity], pose[IcarusInterface.linear_velocity]
 
     @staticmethod
     def release():
         qsim.release()
-        DroneInterface.countSims = 0
+        IcarusInterface.countSims = 0
 
     @staticmethod
     def update_stateless(pose, pid, thrusts):
-        DroneInterface._set_pid(0, pid)
-        pose = qsim.update(pose.tolist(), thrusts.tolist(), DroneInterface.dt, 0)
-        pid = DroneInterface._get_pid(0)
+        IcarusInterface._set_pid(0, pid)
+        pose = qsim.update(pose.tolist(), thrusts.tolist(), IcarusInterface.dt, 0)
+        pid = IcarusInterface._get_pid(0)
         if pose is not None:
             pose = np.array(pose, dtype=np.float64)
         return pose, pid
@@ -73,15 +73,15 @@ class IcarusInterface:
         orientation = orientation / np.linalg.norm(orientation)
         orientation[0] = np.abs(orientation[0])
 
-        pose[DroneInterface.position] = np.random.normal(0, 2, 3)
-        pose[DroneInterface.orientation] = orientation
-        pose[DroneInterface.linear_velocity] = np.random.normal(0, 2, 3)
-        pose[DroneInterface.angular_velocity] = np.random.normal(0, 2, 3)
+        pose[IcarusInterface.position] = np.random.normal(0, 2, 3)
+        pose[IcarusInterface.orientation] = orientation
+        pose[IcarusInterface.linear_velocity] = np.random.normal(0, 2, 3)
+        pose[IcarusInterface.angular_velocity] = np.random.normal(0, 2, 3)
 
         return np.float64(pose)
 
     @staticmethod
     def get_pose_with_rotation_mat(pose):
-        orientation, position, angular, linear = DroneInterface.get_state(pose)
+        orientation, position, angular, linear = IcarusInterface.get_state(pose)
         orientation = np.ndarray.flatten(Quaternion(orientation).rotation_matrix.transpose())
         return np.concatenate((orientation, position, angular, linear))

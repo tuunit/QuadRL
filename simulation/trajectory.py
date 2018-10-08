@@ -19,16 +19,16 @@
 import numpy as np
 from pyquaternion import Quaternion
 
-from interface import IcarusInterface
+from .interface import IcarusInterface
 
 class Trajectory:
     def __init__(self):
-        self.pose = DroneInterface.random_pose()
+        self.pose = IcarusInterface.random_pose()
         self.pid = [0.0 for _ in range(12)]
 
     def reset(self):
         self.pose = np.array([0.0 for _ in range(13)])
-        self.pose[DroneInterface.orientation] = [1.0, 0.0, 0.0, 0.0]
+        self.pose[IcarusInterface.orientation] = [1.0, 0.0, 0.0, 0.0]
         self.pose = np.float64(self.pose)
 
     def set_pose(self, pose):
@@ -44,13 +44,13 @@ class Trajectory:
         return self.pid
 
     def get_state(self):
-        return DroneInterface.get_state(self.pose)
+        return IcarusInterface.get_state(self.pose)
 
     def get_pose_with_rotation_mat(self):
-        return DroneInterface.get_pose_with_rotation_mat(self.pose)
+        return IcarusInterface.get_pose_with_rotation_mat(self.pose)
 
     def step(self, thrusts):
-        pose, pid = DroneInterface.update_stateless(self.pose, self.pid, thrusts)
+        pose, pid = IcarusInterface.update_stateless(self.pose, self.pid, thrusts)
         if pose is None:
             pass
         else:

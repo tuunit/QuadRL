@@ -124,7 +124,7 @@ def run_training(arguments):
     policy_graph = tf.Graph()
     policy_sess = tf.Session(graph=policy_graph)
 
-    policy_net = PolicyNet(shape=[18, 64, 64, 4], graph=policy_graph)
+    policy_net = nn.PolicyNet(shape=[18, 64, 64, 4], noise_cov=Config.NOISE_COV, graph=policy_graph)
     with policy_sess.as_default():
         with policy_sess.graph.as_default():
             tf.global_variables_initializer().run()
@@ -136,7 +136,7 @@ def run_training(arguments):
     value_graph = tf.Graph()
     value_sess = tf.Session(graph=value_graph)
 
-    value_net = ValueNet(shape=[18, 64, 64, 1], graph=value_graph)
+    value_net = nn.ValueNet(shape=[18, 64, 64, 1], graph=value_graph)
     with value_sess.as_default():
         with value_sess.graph.as_default():
             tf.global_variables_initializer().run()
@@ -168,7 +168,7 @@ def run_training(arguments):
         print('TARGET', TARGET)
 
         # Initialize random branch / junction points in time
-        branches = sorted(np.random.randint(0, Config.INITIAL_LENGTH-Config.TAIL_STEPS, size=BRANCHES_N))
+        branches = sorted(np.random.randint(0, Config.INITIAL_LENGTH-Config.TAIL_STEPS, size=Config.BRANCHES_N))
         branch_indices = np.random.randint(0, Config.INITIAL_N, size=Config.BRANCHES_N)
         branch_trajs = {'trajs': [], 'positions': [], 'init_trajs': []}
 
@@ -354,7 +354,7 @@ def run_training(arguments):
                     if not i % 99:
                         pbar.write("Value loss: {:.4f}".format(loss))
                     pbar.set_postfix(loss="{:.4f}".format(loss))
-                    if loss <= VALUE_LOSS_LIMIT:
+                    if loss <= Config.VALUE_LOSS_LIMIT:
                         break
         pbar.close()
         del(pbar)
@@ -479,7 +479,7 @@ def run_test(arguments):
     frame_rate = 1 / 20.
 
     # Initialize policy network
-    policy_net = PolicyNet(shape=[18,64,64,4])
+    policy_net = nn.NeuralNet(shape=[18,64,64,4])
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
