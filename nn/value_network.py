@@ -1,3 +1,21 @@
+#########################################################
+#                                                       #
+#   #, #,         CCCCCC  VV    VV MM      MM RRRRRRR   #
+#  %  %(  #%%#   CC    CC VV    VV MMM    MMM RR    RR  #
+#  %    %## #    CC        V    V  MM M  M MM RR    RR  #
+#   ,%      %    CC        VV  VV  MM  MM  MM RRRRRR    #
+#   (%      %,   CC    CC   VVVV   MM      MM RR   RR   #
+#     #%    %*    CCCCCC     VV    MM      MM RR    RR  #
+#    .%    %/                                           #
+#       (%.      Computer Vision & Mixed Reality Group  #
+#                                                       #
+#########################################################
+#   @copyright    Hochschule RheinMain,                 #
+#                 University of Applied Sciences        #
+#      @author    Jan Larwig, Sohaib Zahid              #
+#     @version    1.0.0                                 #
+#        @date    08.10.2018                            #
+#########################################################
 import tensorflow as tf
 from .neural_network import NeuralNet
 

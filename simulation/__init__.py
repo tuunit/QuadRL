@@ -1,3 +1,2 @@
-from .interface import IcarusInterface as Interface
 from .trajectory import Trajectory
-
+from .interface import IcarusInterface as Interface

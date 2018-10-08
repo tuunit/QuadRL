@@ -21,6 +21,7 @@ import pickle
 import numpy as np
 import multiprocessing
 import tensorflow as tf
+
 from tqdm import tqdm
 from time import time
 from queue import Queue
@@ -518,6 +519,7 @@ def run_test(arguments):
                 action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[normalize_state(state)]})[0])
                 # Add bias to guarantee take off
                 action = Config.ACTION_SCALE * action + Config.ACTION_BIAS
+                print(action)
 
                 #action = np.clip(action, 0, ACTION_MAX)
 
