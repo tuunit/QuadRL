@@ -31,16 +31,15 @@ class Config:
     DISCOUNT_VALUE = 0.99
     TIME_STEP = 0.01
     ACTION_BIAS = .00
-    ACTION_MAX = 30000
-    ACTION_SCALE = 1.
-    NOISE_COV = np.matrix([[.05, 0., 0., 0.],
-                           [0., .05, 0., 0.],
-                           [0., 0., .05, 0.],
-                           [0., 0., 0., .05]], dtype=np.float64)
+    ACTION_SCALE = 4.
+    NOISE_COV = np.matrix([[.0062, 0., 0., 0.],
+                           [0., .0062, 0., 0.],
+                           [0., 0., .0062, 0.],
+                           [0., 0., 0., .0062]], dtype=np.float64)
     CHOLESKY_COV = np.linalg.cholesky(NOISE_COV)
     ANGULAR_VEL_NORM = 1/2.
     LINEAR_VEL_NORM = 1/2.
-    POSITION_NORM = 1/5.
+    POSITION_NORM = 1/2.
 
 def NOISE():
     return np.array((np.random.normal(0, 1, 4)) * np.float64(Config.CHOLESKY_COV))[0]

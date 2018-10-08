@@ -46,7 +46,7 @@ def cost(position, action, angular, linear):
     position = 4. * 10**(-3) * np.sqrt(np.linalg.norm(position))
     angular = 5. * 10**(-5) * np.linalg.norm(angular)
     linear = 5. * 10**(-5) * np.linalg.norm(linear)
-    action = 5. * 10**(-5) * np.linalg.norm(action)
+    action = 5. * 10**(-4) * np.linalg.norm(action)
 
     return position + action + angular + linear
 
@@ -55,7 +55,7 @@ def compute_cost_mat(states, actions):
     position = 4. * 10**(-3) * np.sqrt(np.linalg.norm(states[:, 9:12], axis=1))
     angular = 5. * 10**(-5) * np.linalg.norm(states[:, 12:15], axis=1)
     linear = 5. * 10**(-5) * np.linalg.norm(states[:, 15:18], axis=1)
-    action = 5. * 10**(-5) * np.linalg.norm(actions, axis=1)
+    action = 5. * 10**(-4) * np.linalg.norm(actions, axis=1)
 
     if len(action) != len(states) or len(linear) != len(states):
         print("Incorrect cost computation.")
@@ -129,8 +129,6 @@ def run_training(arguments):
         with policy_sess.graph.as_default():
             tf.global_variables_initializer().run()
             policy_net.saver = tf.train.Saver()
-            #policy_net.saver.restore(policy_sess,
-                                     #'tmp/policy_checkpoint_1536238160.ckpt')
 
     # Instantiate value network with own Tensorflow graph
     value_graph = tf.Graph()
@@ -141,8 +139,6 @@ def run_training(arguments):
         with value_sess.graph.as_default():
             tf.global_variables_initializer().run()
             value_net.saver = tf.train.Saver()
-            #value_net.saver.restore(value_sess,
-                                    #'tmp/value_checkpoint_1536238160.ckpt')
 
     if arguments.log:
         policy_log = open('policy_loss.txt', 'a')
@@ -173,6 +169,7 @@ def run_training(arguments):
         branch_trajs = {'trajs': [], 'positions': [], 'init_trajs': []}
 
         actions_sum = [0., 0., 0., 0.]
+        actions_sum_abs = [0., 0., 0., 0.]
         actions_count = 0
         costs_sum = 0.
         costs_count = 0
@@ -204,6 +201,7 @@ def run_training(arguments):
                 actions = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: normalize_states_mat(states)}), dtype=np.float64)
 
                 actions_sum += np.sum(actions, axis=0)
+                actions_sum_abs += np.sum(actions, axis=0)
                 actions_count += Config.INITIAL_N
 
                 actions_mat.append(actions)
@@ -362,14 +360,15 @@ def run_training(arguments):
         # Start value network training
         #print('Value network training')
 
-        print('Mean Action Vector:', actions_sum / actions_count)
+        print('Mean Action    :', actions_sum / actions_count)
+        print('Mean Action ABS:', actions_sum_abs / actions_count)
         #print('Terminal position for Initial Trajectory:', terminal_position, np.linalg.norm(terminal_position))
-        print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
-        print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(all_trajectories[0][0]['states'][0])]})[0])
+        #print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
+        #print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(all_trajectories[0][0]['states'][0])]})[0])
         print('Average cost per time step:', costs_sum / (costs_count*0.01))
-        print('Average value per initial traj:', values_sum / values_count)
+        #print('Average value per initial traj:', values_sum / values_count)
         if arguments.log:
-            policy_log.write(str(values_sum / values_count)+'\n')
+            policy_log.write(str(costs_count / (costs_count*0.01))+'\n')
 
         param_update = 0
         loss = 0
