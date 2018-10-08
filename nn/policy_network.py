@@ -1,12 +1,10 @@
 import tensorflow as tf
-
-from constants import *
-from neural_network import NeuralNet
+from .neural_network import NeuralNet
 
 class PolicyNet(NeuralNet):
     """ Inherited class of NeuralNet for the policy optimization
     """
-    def __init__(self, shape, graph=None):
+    def __init__(self, shape, noise_cov, graph=None):
         NeuralNet.__init__(self, shape, graph)
         with self.graph.as_default():
             # initiliaze policy network variables
@@ -23,7 +21,7 @@ class PolicyNet(NeuralNet):
             gk = tf.matmul(self.action_grads, J)
 
             # svd for hessian pseudo inverse
-            s_, U_, V_ = tf.svd(tf.matmul(tf.transpose(tf.cholesky(tf.matrix_inverse(NOISE_COV))), J))
+            s_, U_, V_ = tf.svd(tf.matmul(tf.transpose(tf.cholesky(tf.matrix_inverse(noise_cov))), J))
             h00_pinv = tf.matmul(tf.matmul(V_, tf.matrix_diag(tf.square(1/s_))), tf.transpose(V_))
 
             # multiply gk with hessian pseudo inverse

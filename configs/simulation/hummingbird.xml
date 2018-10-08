@@ -20,11 +20,17 @@
         <r_max>250</r_max>
         <horizon_mode>1</horizon_mode>
         <horizon_controller>
-            <kp>0.1</kp>
-            <ki>0.0</ki>
-            <kd>0.05</kd>
+            <kp>0.100</kp>
+            <ki>0.000</ki>
+            <kd>0.050</kd>
         </horizon_controller>
-        <location>0. 0. 0.</location>
+        <yaw_controller>
+            <kp>0.010</kp>
+            <ki>0.000</ki>
+            <kd>0.002</kd>
+        </yaw_controller>
+        <location>0. 0. 1000.</location>
+        <orientation>0</orientation>
     </dynamics>
 
 </opencv_storage>

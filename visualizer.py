@@ -1,9 +1,27 @@
+#########################################################
+#                                                       #
+#   #, #,         CCCCCC  VV    VV MM      MM RRRRRRR   #
+#  %  %(  #%%#   CC    CC VV    VV MMM    MMM RR    RR  #
+#  %    %## #    CC        V    V  MM M  M MM RR    RR  #
+#   ,%      %    CC        VV  VV  MM  MM  MM RRRRRR    #
+#   (%      %,   CC    CC   VVVV   MM      MM RR   RR   #
+#     #%    %*    CCCCCC     VV    MM      MM RR    RR  #
+#    .%    %/                                           #
+#       (%.      Computer Vision & Mixed Reality Group  #
+#                                                       #
+#########################################################
+#   @copyright    Hochschule RheinMain,                 #
+#                 University of Applied Sciences        #
+#      @author    Jan Larwig, Sohaib Zahid              #
+#     @version    1.0.0                                 #
+#        @date    08.10.2018                            #
+#########################################################
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as Axes3D
 
-class GUI():
+class Visualizer():
     def __init__(self, span):
         self.span = span
         self.fig = plt.figure()
@@ -41,9 +59,6 @@ class GUI():
         span = self.span
 
         points = np.array([[-span, 0, 0], [span, 0, 0], [0, -span, 0], [0, span, 0], [0, 0, span/2.], [0, 0, 0]]).T
-        #points = np.dot(np.array([[0.70710678, -0.70710678, 0.],
-        #                       [0.70710678,  0.70710678, 0.],
-        #                       [0.        ,  0.        , 1.]]), points)
         points = np.dot(R, points)
 
         points[0, :] += state['position'][0]

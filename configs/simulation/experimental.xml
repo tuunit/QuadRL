@@ -11,15 +11,26 @@
         <rotor_distance>0.17</rotor_distance> <!--m-->
         <k_f>3.5996e-4</k_f>
         <k_t>5.4000e-6</k_t>
-        <rpm_min>100</rpm_min>
+        <rpm_min>120</rpm_min>
         <rpm_max>7800</rpm_max>
         <k_m_up>0.050</k_m_up>
         <k_m_dn>0.033</k_m_dn>
-        <p_max>275</p_max>
-        <q_max>275</q_max>
-        <r_max>275</r_max>
+        <p_max>1080</p_max>
+        <q_max>1080</q_max>
+        <r_max>720</r_max>
         <horizon_mode>0</horizon_mode>
-        <location>0. 0. 0.</location>
+        <horizon_controller>
+            <kp>0.100</kp>
+            <ki>0.000</ki>
+            <kd>0.050</kd>
+        </horizon_controller>
+        <yaw_controller>
+            <kp>0.010</kp>
+            <ki>0.000</ki>
+            <kd>0.002</kd>
+        </yaw_controller>
+        <location>-58565. 106338. 1000.</location>
+        <orientation>180</orientation>
     </dynamics>
 
 </opencv_storage>

@@ -1,5 +1,5 @@
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 
 class NeuralNet:
     """ Generic neural network class to create fully connected networks of any size

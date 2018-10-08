@@ -19,37 +19,25 @@
 import os
 import pickle
 import numpy as np
+import multiprocessing
 import tensorflow as tf
 from tqdm import tqdm
-from random import sample
-from time import (sleep, time)
-from pyquaternion import Quaternion
-from gui import GUI
-from constants import *
-from utils import *
-from drone_interface_icarus import DroneInterface, Trajectory
-from neural_network import NeuralNet
-from policy_network import PolicyNet
-from value_network import ValueNet
+from time import time
 from queue import Queue
-import multiprocessing
+from pyquaternion import Quaternion
 
-# Value function as defined in formula 4
-# def value_function(sess, value_net, costs, states, i):
-#     values = []
-#     T = len(costs)
-#     value_factor = value_net.model().eval(session=sess, feed_dict={value_net.input:[states[T-1]]})[0][0]
-#     for t in range(i, T-1):
-#         v = DISCOUNT_VALUE**(t-i) * costs[t]
-#         values.append(v)
-#     return sum(values) + (DISCOUNT_VALUE**(T-(i+1)) * value_factor)
+import nn
+import simulation as sim
+
+from utils import *
+from visualizer import Visualizer
 
 def value_function_vectorized(costs, terminal_value):
     values = np.zeros(len(costs))
     values[-1] = terminal_value
 
     for i in range(len(costs)-2, -1, -1):
-        values[i] = costs[i] + DISCOUNT_VALUE * values[i+1]
+        values[i] = costs[i] + Config.DISCOUNT_VALUE * values[i+1]
 
     return values
 
@@ -76,16 +64,16 @@ def compute_cost_mat(states, actions):
 
 def normalize_state(state):
     n_state = np.array(state)
-    n_state[9:12] = state[9:12] * POSITION_NORM
-    n_state[12:15] = state[12:15] * ANGULAR_VEL_NORM
-    n_state[15:18] = state[15:18] * LINEAR_VEL_NORM
+    n_state[9:12] = state[9:12] * Config.POSITION_NORM
+    n_state[12:15] = state[12:15] * Config.ANGULAR_VEL_NORM
+    n_state[15:18] = state[15:18] * Config.LINEAR_VEL_NORM
     return n_state
 
 def normalize_states_mat(states):
     n_state = np.array(states)
-    n_state[:, 9:12] = states[:, 9:12] * POSITION_NORM
-    n_state[:, 12:15] = states[:, 12:15] * ANGULAR_VEL_NORM
-    n_state[:, 15:18] = states[:, 15:18] * LINEAR_VEL_NORM
+    n_state[:, 9:12] = states[:, 9:12] * Config.POSITION_NORM
+    n_state[:, 12:15] = states[:, 12:15] * Config.ANGULAR_VEL_NORM
+    n_state[:, 15:18] = states[:, 15:18] * Config.LINEAR_VEL_NORM
     return n_state
 
 def train_value_network(sess, value_net, value_batch, state_batch):
@@ -111,12 +99,12 @@ def visualize(trajectories):
         mat = [state[0:3], state[3:6], state[6:9]]
         return {'position': state[9:12], 'rotation_matrix': mat}
 
-    gui = GUI(0.046 * 50)
+    visualizer = Visualizer(0.046 * 50)
     b = 1
     for i in range(len(trajectories[-1]['states']) + trajectories[-1]['position'] + trajectories[b]['level']):
         for j in range(b, len(trajectories)):
             if trajectories[b]['position'] + trajectories[b]['level'] + 1 == i:
-                gui.add_quadrotor()
+                visualizer.add_quadrotor()
                 b += 1
         for j in range(b):
             if j == 0:
@@ -126,7 +114,7 @@ def visualize(trajectories):
             if idx >= len(trajectories[j]['states']):
                 continue
 
-            gui.update(state_to_dict(trajectories[j]['states'][idx]), j)
+            visualizer.update(state_to_dict(trajectories[j]['states'][idx]), j)
 
 def run_training(arguments):
     # Reset Tensorflow graph
@@ -159,13 +147,11 @@ def run_training(arguments):
     if arguments.log:
         policy_log = open('policy_loss.txt', 'a')
         value_log = open('value_loss.txt', 'a')
-        policy_log.write('----Start----\n')
-        value_log.write('----Start----\n')
 
-    DroneInterface.set_timestep(TIME_STEP)
+    sim.Interface.set_timestep(Config.TIME_STEP)
 
     # Start main training loop
-    for t in range(0, TRAJECTORIES_N):
+    for t in range(0, Config.TRAJECTORIES_N):
         if arguments.log:
             policy_log = open('policy_loss.txt', 'a')
             value_log = open('value_loss.txt', 'a')
@@ -182,8 +168,8 @@ def run_training(arguments):
         print('TARGET', TARGET)
 
         # Initialize random branch / junction points in time
-        branches = sorted(np.random.randint(0, INITIAL_LENGTH-TAIL_STEPS, size=BRANCHES_N))
-        branch_indices = np.random.randint(0, INITIAL_N, size=BRANCHES_N)
+        branches = sorted(np.random.randint(0, Config.INITIAL_LENGTH-Config.TAIL_STEPS, size=BRANCHES_N))
+        branch_indices = np.random.randint(0, Config.INITIAL_N, size=Config.BRANCHES_N)
         branch_trajs = {'trajs': [], 'positions': [], 'init_trajs': []}
 
         actions_sum = [0., 0., 0., 0.]
@@ -191,16 +177,15 @@ def run_training(arguments):
         costs_sum = 0.
         costs_count = 0
 
-        DroneInterface.init()
+        sim.Interface.init()
         initial_trajs = []
 
-        for _ in range(INITIAL_N):
-            tmp = Trajectory()
-            tmp.set_pose(DroneInterface.random_pose())
+        for _ in range(Config.INITIAL_N):
+            tmp = sim.Trajectory()
             initial_trajs.append(tmp)
 
         # Generate branch trajectories
-        pbar = tqdm(range(INITIAL_LENGTH))
+        pbar = tqdm(range(Config.INITIAL_LENGTH))
         pbar.set_description('Generating Initial Trajectories')
 
         states_mat = []
@@ -213,21 +198,21 @@ def run_training(arguments):
         states = np.array(states)
 
         with multiprocessing.Pool(processes=8) as pool:
-            for j in range(0, INITIAL_LENGTH):
+            for j in range(0, Config.INITIAL_LENGTH):
                 pbar.update(1)
 
                 actions = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: normalize_states_mat(states)}), dtype=np.float64)
 
                 actions_sum += np.sum(actions, axis=0)
-                actions_count += INITIAL_N
+                actions_count += Config.INITIAL_N
 
                 actions_mat.append(actions)
                 states_mat.append(states)
 
-                actions_feed = ACTION_SCALE * actions + ACTION_BIAS
+                actions_feed = Config.ACTION_SCALE * actions + Config.ACTION_BIAS
                 if j in branches:
                     for idx in range(branches.count(j)):
-                        for _ in range(NOISE_DEPTH):
+                        for _ in range(Config.NOISE_DEPTH):
                             branch = initial_trajs[branch_indices[branches.index(j) + idx]].snapshot()
                             branch_trajs['trajs'].append(branch)
                             branch_trajs['positions'].append(j)
@@ -248,7 +233,7 @@ def run_training(arguments):
             actions = actions_mat[:, i]
             states = states_mat[:, i]
             costs = costs_mat[:, i]
-            if len(actions) != len(states) or len(states) != len(costs) or len(states) != INITIAL_LENGTH:
+            if len(actions) != len(states) or len(states) != len(costs) or len(states) != Config.INITIAL_LENGTH:
                 print('ERROR: Anomalous trajectory data.')
 
             all_trajectories.append([{'level': -1, 'states': states, 'actions': actions, 'costs': costs}])
@@ -256,60 +241,8 @@ def run_training(arguments):
         pbar.close()
         del(pbar)
 
-        # # Initial flight
-        # for b in range(INITIAL_LENGTH):
-        #     # Get state information from drone subscriber
-        #     orientation, position, angular, linear = initial_traj.get_state()
-        #
-        #     # Calculate relative distance to target position
-        #     position = np.subtract(position, TARGET)
-        #     if b == 0:
-        #         print(position)
-        #
-        #     orientation = np.ndarray.flatten(Quaternion(orientation).rotation_matrix)
-        #
-        #     # Concatenate all to generate an input state vector for the networks
-        #     state = np.concatenate((orientation, position, angular, linear))
-        #
-        #     # Predict action with policy network
-        #     action = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input:[normalize_state(state)]})[0], dtype=np.float64)
-        #     _action = action
-        #     # Save prediction for the optimization step
-        #
-        #     # Calculate and save cost of state
-        #     costs.append(cost(position, action, angular, linear))
-        #
-        #     # Add bias to guarantee take off
-        #     action = ACTION_SCALE * action + ACTION_BIAS
-        #
-        #     actions.append(action)
-        #     actions_sum += np.absolute(_action)
-        #     actions_count += 1
-        #
-        #     # Save full pose of the Quadcopter if a junction has to be created at this point of time later on
-        #     if b in branches:
-        #         for _ in range(NOISE_DEPTH):
-        #             branch = initial_traj.snapshot()
-        #             branch_trajs['trajs'].append(branch)
-        #             branch_trajs['positions'].append(b)
-        #
-        #     # Save state vector
-        #     states.append(state)
-        #
-        #     # Feed action vector to the drone
-        #     initial_traj.step(action)
-        #
-        #     if b == INITIAL_LENGTH -1:
-        #         terminal_value = position
-        # # Save initial trajectory to the list of the collection cycle
-        # trajectories.append({'level': -1, 'states': states, 'actions': actions, 'costs': costs})
-
-        ################################################################################################################
-        ###################################    BRANCH TRAJECTORIES: STARTS    ##########################################
-        ################################################################################################################
-
         # Generate branch trajectories
-        pbar = tqdm(range(BRANCH_LENGTH))
+        pbar = tqdm(range(Config.BRANCH_LENGTH))
         pbar.set_description('Generating branch trajectories')
 
         states_mat = []
@@ -323,7 +256,7 @@ def run_training(arguments):
         states = np.array(states)
 
         with multiprocessing.Pool(processes=8) as pool:
-            for j in range(0, BRANCH_LENGTH):
+            for j in range(0, Config.BRANCH_LENGTH):
                 pbar.update(1)
 
                 actions = np.array(policy_net.model().eval(session=policy_sess, feed_dict={policy_net.input: normalize_states_mat(states)}), dtype=np.float64)
@@ -331,19 +264,19 @@ def run_training(arguments):
                 actions_mat.append(actions)
                 states_mat.append(states)
 
-                if j < NOISE_DEPTH:
-                    mask = np.array([False if (x % NOISE_DEPTH) >= j else True for x in range(BRANCHES_N * NOISE_DEPTH)])
-                    noises = NOISE_MAT(BRANCHES_N)
-                    noises = np.repeat(noises, NOISE_DEPTH, axis=0)
+                if j < Config.NOISE_DEPTH:
+                    mask = np.array([False if (x % Config.NOISE_DEPTH) >= j else True for x in range(Config.BRANCHES_N * Config.NOISE_DEPTH)])
+                    noises = NOISE_MAT(Config.BRANCHES_N)
+                    noises = np.repeat(noises, Config.NOISE_DEPTH, axis=0)
                     noises[mask] *= 0.
 
-                    actions_feed = ACTION_SCALE * (noises + actions) + ACTION_BIAS
+                    actions_feed = Config.ACTION_SCALE * (noises + actions) + Config.ACTION_BIAS
 
-                    mask = np.array([False if (x % NOISE_DEPTH) == j else True for x in range(BRANCHES_N * NOISE_DEPTH)])
+                    mask = np.array([False if (x % Config.NOISE_DEPTH) == j else True for x in range(Config.BRANCHES_N * Config.NOISE_DEPTH)])
                     noises[mask] *= 0.
                     noise_mat.append(noises)
                 else:
-                    actions_feed = ACTION_SCALE * actions + ACTION_BIAS
+                    actions_feed = Config.ACTION_SCALE * actions + Config.ACTION_BIAS
 
                 branch_trajs['trajs'] = pool.map(traj_step, zip(branch_trajs['trajs'], actions_feed))
 
@@ -357,13 +290,13 @@ def run_training(arguments):
         costs_mat = np.array(costs_mat)
 
         for i, b in enumerate(branch_trajs['positions']):
-            n = i % NOISE_DEPTH
+            n = i % Config.NOISE_DEPTH
 
             noise = noise_mat[n, i]
             actions = actions_mat[n:, i]
             states = states_mat[n:, i]
             costs = costs_mat[n:, i]
-            if len(actions) != len(states) or len(states) != len(costs) or len(states) != BRANCH_LENGTH - (n):
+            if len(actions) != len(states) or len(states) != len(costs) or len(states) != Config.BRANCH_LENGTH - (n):
                 print('ERROR: Anomalous trajectory data.')
 
             all_trajectories[branch_trajs['init_trajs'][i]].append({'level': n, 'noise': noise, 'states': states, 'actions': actions, 'costs': costs, 'position': b})
@@ -390,7 +323,7 @@ def run_training(arguments):
 
 
         # Optimize value network
-        pbar = tqdm(range(VALUE_ITERATIONS))
+        pbar = tqdm(range(Config.VALUE_ITERATIONS))
         pbar.set_description('Optimizing value network')
 
         value_batch = None
@@ -408,12 +341,12 @@ def run_training(arguments):
                     if trajectory['level'] == 0:
                         value_batch = np.concatenate((value_batch, trajectories[0]['values'][trajectory['position']: trajectory['position'] + 1]))
                         state_batch = np.concatenate((state_batch, trajectories[0]['states'][trajectory['position']: trajectory['position'] + 1]))
-        if value_batch.shape[0] != BRANCHES_N * (NOISE_DEPTH + 1):
+        if value_batch.shape[0] != Config.BRANCHES_N * (Config.NOISE_DEPTH + 1):
             print("Invalid data for value network training")
 
         with value_sess.as_default():
             with value_sess.graph.as_default():
-                for i in range(VALUE_ITERATIONS):
+                for i in range(Config.VALUE_ITERATIONS):
                     pbar.update(1)
                     loss = train_value_network(value_sess, value_net, value_batch, state_batch)
                     if arguments.log:
@@ -441,7 +374,7 @@ def run_training(arguments):
         param_update = 0
         loss = 0
 
-        pbar = tqdm(range(BRANCHES_N*NOISE_DEPTH))
+        pbar = tqdm(range(Config.BRANCHES_N*Config.NOISE_DEPTH))
         pbar.set_description('Optimising policy network')
         betas = 0
 
@@ -471,11 +404,9 @@ def run_training(arguments):
 
                     rf = cost(trajectory['states'][1][9:12], noise + junction_action, trajectory['states'][1][12:15], trajectory['states'][1][15:18])
 
-                    As.append((rf + DISCOUNT_VALUE * vf) - vp)
+                    As.append((rf + Config.DISCOUNT_VALUE * vf) - vp)
                     grad_As.append(-As[-1] * noise / (np.linalg.norm(noise)))
                     junction_states.append(junction_state)
-                    #As[-1] = As[-1]**2
-            #print('Advantage gradients calculated.')
 
             loss += sum(As)
         # Optimize policy network
@@ -493,7 +424,7 @@ def run_training(arguments):
                     betas += beta[0][0]
                     learningRate = min(2300., beta[0][0])
                     # Add up nk
-                    param_update += learningRate * nk[0] / BRANCHES_N
+                    param_update += learningRate * nk[0] / Config.BRANCHES_N
 
         pbar.close()
         del (pbar)
@@ -504,7 +435,7 @@ def run_training(arguments):
                 # Apply learning rate to new update step
                 param_update = -np.array(param_update)
                 print('param_update:', param_update)
-                print('betas:', betas / BRANCHES_N)
+                print('betas:', betas / Config.BRANCHES_N)
 
                 print('Policy Loss:', loss)
 
@@ -533,18 +464,18 @@ def run_training(arguments):
         with value_sess.as_default():
             with value_sess.graph.as_default():
                 value_net.saver.save(value_sess, 'tmp/value_checkpoint_' + timestamp + '.ckpt')
-        DroneInterface.release()
+        sim.Interface.release()
 
 def run_test(arguments):
     # Reset Tensorflow graph
     tf.reset_default_graph()
 
     # Instantiate publisher and subscriber for Gazebo
-    DroneInterface.set_timestep(TIME_STEP)
-    DroneInterface.init()
-    traj = Trajectory()
+    sim.Interface.set_timestep(Config.TIME_STEP)
+    sim.Interface.init()
+    traj = sim.Trajectory()
 
-    gui = GUI(0.046 * 50)
+    visualizer = Visualizer(0.046 * 50)
     frame_rate = 1 / 20.
 
     # Initialize policy network
@@ -559,7 +490,7 @@ def run_test(arguments):
 
         for _ in range(1):
             # Generate random start position for the Quadcopter
-            traj.set_pose(DroneInterface.random_pose())
+            traj.set_pose(sim.Interface.random_pose())
 
             frame_time = 0
 
@@ -573,7 +504,7 @@ def run_test(arguments):
                 state = {'position': position, 'rotation_matrix': orientation.rotation_matrix}
 
                 if frame_time - frame_rate < time():
-                    gui.update(state, 0)
+                    visualizer.update(state, 0)
                     frame_time = time()
 
                 orientation = np.ndarray.flatten(orientation.rotation_matrix)
@@ -587,7 +518,7 @@ def run_test(arguments):
                 # Predict action with policy network
                 action = np.array(sess.run(policy_net.model(), feed_dict={policy_net.input:[normalize_state(state)]})[0])
                 # Add bias to guarantee take off
-                action = ACTION_SCALE * action + ACTION_BIAS
+                action = Config.ACTION_SCALE * action + Config.ACTION_BIAS
 
                 #action = np.clip(action, 0, ACTION_MAX)
 
