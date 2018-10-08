@@ -88,7 +88,6 @@ def normalize_states_mat(states):
     n_state[:, 15:18] = states[:, 15:18] * LINEAR_VEL_NORM
     return n_state
 
-
 def train_value_network(sess, value_net, value_batch, state_batch):
     value_batch = np.array(value_batch).reshape([-1, 1])
     _, c = sess.run([value_net.train_op, value_net.loss], feed_dict={value_net.input: normalize_states_mat(np.array(state_batch)),
@@ -167,7 +166,6 @@ def run_training(arguments):
 
     # Start main training loop
     for t in range(0, TRAJECTORIES_N):
-
         if arguments.log:
             policy_log = open('policy_loss.txt', 'a')
             value_log = open('value_loss.txt', 'a')
@@ -226,7 +224,7 @@ def run_training(arguments):
                 actions_mat.append(actions)
                 states_mat.append(states)
 
-                actions_feed = ACTION_SCALE*actions + ACTION_BIAS
+                actions_feed = ACTION_SCALE * actions + ACTION_BIAS
                 if j in branches:
                     for idx in range(branches.count(j)):
                         for _ in range(NOISE_DEPTH):
@@ -339,13 +337,13 @@ def run_training(arguments):
                     noises = np.repeat(noises, NOISE_DEPTH, axis=0)
                     noises[mask] *= 0.
 
-                    actions_feed = ACTION_SCALE*(noises + actions) + ACTION_BIAS
+                    actions_feed = ACTION_SCALE * (noises + actions) + ACTION_BIAS
 
                     mask = np.array([False if (x % NOISE_DEPTH) == j else True for x in range(BRANCHES_N * NOISE_DEPTH)])
                     noises[mask] *= 0.
                     noise_mat.append(noises)
                 else:
-                    actions_feed = ACTION_SCALE*actions + ACTION_BIAS
+                    actions_feed = ACTION_SCALE * actions + ACTION_BIAS
 
                 branch_trajs['trajs'] = pool.map(traj_step, zip(branch_trajs['trajs'], actions_feed))
 
@@ -560,9 +558,6 @@ def run_test(arguments):
 
 
         for _ in range(1):
-            TARGET = (0., 0., 0.)
-            print('TARGET', TARGET)
-
             # Generate random start position for the Quadcopter
             traj.set_pose(DroneInterface.random_pose())
 

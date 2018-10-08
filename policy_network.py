@@ -30,5 +30,4 @@ class PolicyNet(NeuralNet):
             nk = tf.matmul(h00_pinv, tf.transpose(gk))
             self.train_op = tf.transpose(nk)
             self.beta = tf.sqrt(tf.constant(14000., dtype=tf.float64) / tf.matmul(gk, nk))
-            print(self.beta)
             self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.)

@@ -20,21 +20,11 @@
         <r_max>250</r_max>
         <horizon_mode>1</horizon_mode>
         <horizon_controller>
-	    <!--
-            <kp>0.0000</kp>
+            <kp>0.0800</kp>
             <ki>0.0000</ki>
-            <kd>0.0000</kd>
-	    -->
-            <kp>0.0125</kp>
-            <ki>0.0000</ki>
-            <kd>0.0020</kd>
+            <kd>0.0200</kd>
         </horizon_controller>
         <yaw_controller>
-	    <!--
-            <kp>0.0000</kp>
-            <ki>0.0000</ki>
-	    <kd>0.0000</kd>
-	    -->
             <kp>0.00020</kp>
             <ki>0.00000</ki>
             <kd>0.00002</kd>

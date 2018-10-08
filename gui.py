@@ -18,8 +18,9 @@ class GUI():
 
         l1 = self.ax.plot([], [], [], color='blue', linewidth=3, antialiased=False)[0]
         l2 = self.ax.plot([], [], [], color='red', linewidth=3, antialiased=False)[0]
+        normal = self.ax.plot([], [], [], color='black', linewidth=2, antialiased=False)[0]
         hub = self.ax.plot([], [], [], marker='o', color='green', markersize=6, antialiased=False)[0]
-        self.quadrotors = [{'l1': l1, 'l2': l2, 'hub': hub}]
+        self.quadrotors = [{'l1': l1, 'l2': l2, 'normal': normal, 'hub': hub}]
 
         self.follow = False
         self.fig.canvas.mpl_connect('key_press_event', self.keypress)
@@ -27,8 +28,9 @@ class GUI():
     def add_quadrotor(self):
         l1 = self.ax.plot([], [], [], color='blue', linewidth=3, antialiased=False)[0]
         l2 = self.ax.plot([], [], [], color='red', linewidth=3, antialiased=False)[0]
+        normal = self.ax.plot([], [], [], color='black', linewidth=2, antialiased=False)[0]
         hub = self.ax.plot([], [], [], marker='o', color='green', markersize=6, antialiased=False)[0]
-        self.quadrotors.append({'l1': l1, 'l2': l2, 'hub': hub})
+        self.quadrotors.append({'l1': l1, 'l2': l2, 'normal': normal, 'hub': hub})
 
     def update_batch(self, states, indices):
         for i in indices:
@@ -38,10 +40,10 @@ class GUI():
         R = state['rotation_matrix']
         span = self.span
 
-        points = np.array([[-span, 0, 0], [span, 0, 0], [0, -span, 0], [0, span, 0], [0, 0, 0], [0, 0, 0]]).T
-        points = np.dot(np.array([[0.70710678, -0.70710678, 0.],
-                               [0.70710678,  0.70710678, 0.],
-                               [0.        ,  0.        , 1.]]), points)
+        points = np.array([[-span, 0, 0], [span, 0, 0], [0, -span, 0], [0, span, 0], [0, 0, span/2.], [0, 0, 0]]).T
+        #points = np.dot(np.array([[0.70710678, -0.70710678, 0.],
+        #                       [0.70710678,  0.70710678, 0.],
+        #                       [0.        ,  0.        , 1.]]), points)
         points = np.dot(R, points)
 
         points[0, :] += state['position'][0]
@@ -52,13 +54,15 @@ class GUI():
         self.quadrotors[idx]['l1'].set_3d_properties(points[2,0:2])
         self.quadrotors[idx]['l2'].set_data(points[0,2:4],points[1,2:4])
         self.quadrotors[idx]['l2'].set_3d_properties(points[2,2:4])
+        self.quadrotors[idx]['normal'].set_data(points[0,4:6],points[1,4:6])
+        self.quadrotors[idx]['normal'].set_3d_properties(points[2,4:6])
         self.quadrotors[idx]['hub'].set_data(points[0,5],points[1,5])
         self.quadrotors[idx]['hub'].set_3d_properties(points[2,5])
 
         if self.follow:
             x = [points[0, 5]-10, points[0, 5]+10]
             y = [points[1, 5]-10, points[1, 5]+10]
-            z = [points[2, 5]-5, points[2, 5]+15]
+            z = [points[2, 5]-10, points[2, 5]+10]
             self.ax.set_xlim3d(x)
             self.ax.set_ylim3d(y)
             self.ax.set_zlim3d(z)

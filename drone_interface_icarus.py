@@ -51,22 +51,16 @@ class DroneInterface:
     @staticmethod
     def random_pose():
         pose = np.array([0.0 for _ in range(13)])
-        pose[DroneInterface.orientation] = [1.0, 0.0, 0.0, 0.0]
 
-        pose[DroneInterface.position] = np.random.normal(0, 2, 3)
-        #pose[DroneInterface.position] = [0, 0, 5]
-
-        x, y, z = (np.random.rand(3) * 40) - 20
-        x = Quaternion(axis=[1, 0, 0], degrees=x)
-        y = Quaternion(axis=[0, 1, 0], degrees=y)
-        z = Quaternion(axis=[0, 0, 1], degrees=z)
-        orientation = x * y * z
         orientation = np.random.normal(0, 1, 4)
         orientation = orientation / np.linalg.norm(orientation)
         orientation[0] = np.abs(orientation[0])
+
+        pose[DroneInterface.position] = np.random.normal(0, 2, 3)
         pose[DroneInterface.orientation] = orientation
         pose[DroneInterface.linear_velocity] = np.random.normal(0, 2, 3)
         pose[DroneInterface.angular_velocity] = np.random.normal(0, 2, 3)
+
         return np.float64(pose)
 
     @staticmethod
@@ -84,7 +78,6 @@ class Trajectory:
     def reset(self):
         self.pose = np.array([0.0 for _ in range(13)])
         self.pose[DroneInterface.orientation] = [1.0, 0.0, 0.0, 0.0]
-        self.pose[DroneInterface.position][2] = 0.1
         self.pose = np.float64(self.pose)
 
     def set_pose(self, pose):
@@ -108,7 +101,7 @@ class Trajectory:
     def step(self, thrusts):
         pose, pid = DroneInterface.update_stateless(self.pose, self.pid, thrusts)
         if pose is None:
-            print(pose)
+            pass
         else:
             self.pose = np.array(pose, dtype=np.float64)
             self.pid = pid
