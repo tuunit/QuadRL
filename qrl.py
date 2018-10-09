@@ -22,9 +22,9 @@ import numpy as np
 import multiprocessing
 import tensorflow as tf
 
+from glob import glob
 from tqdm import tqdm
 from time import time
-from queue import Queue
 from pyquaternion import Quaternion
 
 import nn
@@ -83,6 +83,9 @@ def run_training(arguments):
         with policy_sess.graph.as_default():
             tf.global_variables_initializer().run()
             policy_net.saver = tf.train.Saver()
+            if arguments.restore:
+                policy_net.saver.restore(policy_sess,
+                                        sorted(glob("tmp/policy_*"))[-1][:-5])
 
     # Instantiate value network with own Tensorflow graph
     value_graph = tf.Graph()
@@ -95,6 +98,9 @@ def run_training(arguments):
         with value_sess.graph.as_default():
             tf.global_variables_initializer().run()
             value_net.saver = tf.train.Saver()
+            if arguments.restore:
+                value_net.saver.restore(value_sess,
+                                        sorted(glob("tmp/value_*"))[-1][:-5])
 
     if arguments.log:
         policy_log = open('policy_loss.txt', 'a')
@@ -324,7 +330,7 @@ def run_training(arguments):
                                     #]})[0])
         #print('Average value per initial traj:', values_sum / values_count)
         if arguments.log:
-            policy_log.write(str(costs_count / (costs_count*0.01))+'\n')
+            policy_log.write(str(costs_sum / (costs_count*0.01))+'\n')
 
         param_update = 0
         loss = 0
@@ -479,6 +485,7 @@ def run_test(arguments):
                 action = Utils.forward(sess, policy_net, [state])[0]
 
                 action = Config.ACTION_SCALE * action + Config.ACTION_BIAS
+                print(action)
 
                 #action = np.clip(action, 0, ACTION_MAX)
 
