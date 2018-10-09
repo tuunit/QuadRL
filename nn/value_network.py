@@ -16,6 +16,7 @@
 #     @version    1.0.0                                 #
 #        @date    08.10.2018                            #
 #########################################################
+import numpy as np
 import tensorflow as tf
 from .neural_network import NeuralNet
 
@@ -35,3 +36,12 @@ class ValueNet(NeuralNet):
             grads, gradnorm = tf.clip_by_global_norm(grads, clip_norm=maxnorm)
             grad = zip(grads, variables)
             self.train_op = self.optimizer.apply_gradients(grad)
+
+    def train(self, sess, value_batch, state_batch):
+        value_batch = np.array(value_batch).reshape([-1, 1])
+        _, c = sess.run([self.train_op, self.loss], 
+                    feed_dict = {
+                        self.input: state_batch,
+                        self.output: value_batch
+                    })
+        return c

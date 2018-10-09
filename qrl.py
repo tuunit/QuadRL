@@ -30,38 +30,8 @@ from pyquaternion import Quaternion
 import nn
 import simulation as sim
 
-from utils import *
+from utils import Utils, Config
 from visualizer import Visualizer
-
-# Cost function as defined in formula 9
-def cost(position, action, angular, linear):
-    position = 4. * 10**(-3) * np.sqrt(np.linalg.norm(position))
-    angular = 5. * 10**(-5) * np.linalg.norm(angular)
-    linear = 5. * 10**(-5) * np.linalg.norm(linear)
-    action = 5. * 10**(-4) * np.linalg.norm(action)
-
-    return position + action + angular + linear
-
-# Cost function as defined in formula 9
-def compute_cost_mat(states, actions):
-    position = 4. * 10**(-3) * np.sqrt(np.linalg.norm(states[:, 9:12], axis=1))
-    angular = 5. * 10**(-5) * np.linalg.norm(states[:, 12:15], axis=1)
-    linear = 5. * 10**(-5) * np.linalg.norm(states[:, 15:18], axis=1)
-    action = 5. * 10**(-4) * np.linalg.norm(actions, axis=1)
-
-    if len(action) != len(states) or len(linear) != len(states):
-        print("Incorrect cost computation.")
-
-    return position + action + angular + linear
-
-def train_value_network(sess, value_net, value_batch, state_batch):
-    value_batch = np.array(value_batch).reshape([-1, 1])
-    _, c = sess.run([value_net.train_op, value_net.loss], 
-                    feed_dict = {
-                        value_net.input: Utils.normalize_states(state_batch),
-                        value_net.output: value_batch
-                    })
-    return c
 
 # Main function to start the testing or training loop
 def run(arguments):
@@ -185,7 +155,7 @@ def run_training(arguments):
                 actions = Utils.forward(policy_sess, policy_net, states)
 
                 actions_sum += np.sum(actions, axis=0)
-                actions_sum_abs += np.sum(actions, axis=0)
+                actions_sum_abs += np.sum(np.abs(actions), axis=0)
                 actions_count += Config.INITIAL_N
 
                 actions_mat.append(actions)
@@ -202,7 +172,7 @@ def run_training(arguments):
 
                 initial_trajs = pool.map(traj_step, zip(initial_trajs, actions_feed))
                 states = np.array([traj.get_pose_with_rotation_mat() for traj in initial_trajs])
-                costs_mat.append(compute_cost_mat(states, actions))
+                costs_mat.append(Utils.compute_cost(states, actions))
                 costs_sum += sum(costs_mat[-1])
                 costs_count += len(costs_mat[-1])
 
@@ -211,7 +181,6 @@ def run_training(arguments):
         costs_mat = np.array(costs_mat)
 
         for i in range(len(initial_trajs)):
-
             actions = actions_mat[:, i]
             states = states_mat[:, i]
             costs = costs_mat[:, i]
@@ -219,7 +188,6 @@ def run_training(arguments):
                 print('ERROR: Anomalous trajectory data.')
 
             all_trajectories.append([{'level': -1, 'states': states, 'actions': actions, 'costs': costs}])
-            #terminal_position = all_trajectories[0][0]['states'][-1][9:12]
         pbar.close()
         del(pbar)
 
@@ -264,7 +232,7 @@ def run_training(arguments):
 
                 states = np.array([traj.get_pose_with_rotation_mat() for traj in branch_trajs['trajs']])
 
-                costs_mat.append(compute_cost_mat(states, actions))
+                costs_mat.append(Utils.compute_cost(states, actions))
 
         noise_mat = np.array(noise_mat)
         states_mat = np.array(states_mat)
@@ -331,7 +299,9 @@ def run_training(arguments):
             with value_sess.graph.as_default():
                 for i in range(Config.VALUE_ITERATIONS):
                     pbar.update(1)
-                    loss = train_value_network(value_sess, value_net, value_batch, state_batch)
+                    loss = value_net.train(value_sess,
+                                           value_batch,
+                                           Utils.normalize_states(state_batch))
                     if arguments.log:
                         value_log.write(str(loss)+'\n')
                     if not i % 99:
@@ -342,15 +312,16 @@ def run_training(arguments):
         pbar.close()
         del(pbar)
 
-        # Start value network training
-        #print('Value network training')
-
         print('Mean Action    :', actions_sum / actions_count)
         print('Mean Action ABS:', actions_sum_abs / actions_count)
+        print('Average cost per time step:', costs_sum / (costs_count*0.01))
         #print('Terminal position for Initial Trajectory:', terminal_position, np.linalg.norm(terminal_position))
         #print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
-        #print('Approximated Value for Initial Trajectory:', value_net.model().eval(session=value_sess, feed_dict={value_net.input: [normalize_state(all_trajectories[0][0]['states'][0])]})[0])
-        print('Average cost per time step:', costs_sum / (costs_count*0.01))
+        #print('Approximated Value for Initial Trajectory:',
+            #value_net.model().eval(session=value_sess, 
+                                    #feed_dict={value_net.input: [
+                                        #normalize_state(all_trajectories[0][0]['states'][0])
+                                    #]})[0])
         #print('Average value per initial traj:', values_sum / values_count)
         if arguments.log:
             policy_log.write(str(costs_count / (costs_count*0.01))+'\n')
@@ -386,7 +357,8 @@ def run_training(arguments):
                     if len([i for i, j in zip(junction_state, trajectory['states'][0]) if abs(i - j) > 1e-4]) != 0:
                         print("Incorrect junction pairs calculated.")
 
-                    rf = cost(trajectory['states'][1][9:12], noise + junction_action, trajectory['states'][1][12:15], trajectory['states'][1][15:18])
+                    rf = Utils.compute_cost([trajectory['states'][1]],
+                                            [noise + junction_action])[0]
 
                     As.append((rf + Config.DISCOUNT_VALUE * vf) - vp)
                     grad_As.append(-As[-1] * noise / (np.linalg.norm(noise)))

@@ -79,9 +79,3 @@ class IcarusInterface:
         pose[IcarusInterface.angular_velocity] = np.random.normal(0, 2, 3)
 
         return np.float64(pose)
-
-    @staticmethod
-    def get_pose_with_rotation_mat(pose):
-        orientation, position, angular, linear = IcarusInterface.get_state(pose)
-        orientation = np.ndarray.flatten(Quaternion(orientation).rotation_matrix.transpose())
-        return np.concatenate((orientation, position, angular, linear))
