@@ -14,14 +14,15 @@
 #                 University of Applied Sciences        #
 #      @author    Jan Larwig, Sohaib Zahid              #
 #     @version    1.0.0                                 #
-#        @date    08.10.2018                            #
+#        @date    10.10.2018                            #
 #########################################################
 import numpy as np
 from pyquaternion import Quaternion
 
-import qsim
+import pyquadsim as qsim
 
-class IcarusInterface:
+
+class RaiInterface:
     """ Drone Publisher to control Gazebo via ROS and send data to the simulator
     """
     orientation = [i < 4 for i in range(13)]
@@ -35,32 +36,21 @@ class IcarusInterface:
         qsim.createSimulator()
 
     @staticmethod
-    def _get_pid(idx):
-        return qsim.getPIDState(idx)
-
-    @staticmethod
-    def _set_pid(idx, pid):
-        qsim.setPIDState(pid, idx)
-
-    @staticmethod
     def set_timestep(dt):
-        IcarusInterface.dt = dt
+        RaiInterface.dt = dt
 
     @staticmethod
     def get_state(pose):
-        return pose[IcarusInterface.orientation], pose[IcarusInterface.position], \
-               pose[IcarusInterface.angular_velocity], pose[IcarusInterface.linear_velocity]
+        return pose[RaiInterface.orientation], pose[RaiInterface.position], \
+               pose[RaiInterface.angular_velocity], pose[RaiInterface.linear_velocity]
 
     @staticmethod
     def release():
         qsim.release()
-        IcarusInterface.countSims = 0
 
     @staticmethod
     def update_stateless(pose, pid, thrusts):
-        IcarusInterface._set_pid(0, pid)
-        pose = qsim.update(pose.tolist(), thrusts.tolist(), IcarusInterface.dt, 0)
-        pid = IcarusInterface._get_pid(0)
+        pose = qsim.update(pose.tolist(), thrusts.tolist(), RaiInterface.dt, 0)
         if pose is not None:
             pose = np.array(pose, dtype=np.float64)
         return pose, pid
@@ -73,17 +63,16 @@ class IcarusInterface:
         orientation = orientation / np.linalg.norm(orientation)
         orientation[0] = np.abs(orientation[0])
 
-        pose[IcarusInterface.position] = np.random.normal(0, 2, 3)
-        pose[IcarusInterface.orientation] = orientation
-        pose[IcarusInterface.linear_velocity] = np.random.normal(0, 2, 3)
-        pose[IcarusInterface.angular_velocity] = np.random.normal(0, 2, 3)
+        pose[RaiInterface.position] = np.random.normal(0, 2, 3)
+        pose[RaiInterface.orientation] = orientation
+        pose[RaiInterface.linear_velocity] = np.random.normal(0, 2, 3)
+        pose[RaiInterface.angular_velocity] = np.random.normal(0, 2, 3)
 
         return np.float64(pose)
 
 
     @staticmethod
     def get_pose_with_rotation_mat(pose):
-        orientation, position, angular, linear = IcarusInterface.get_state(pose)
+        orientation, position, angular, linear = RaiInterface.get_state(pose)
         orientation = np.ndarray.flatten(Quaternion(orientation).rotation_matrix.transpose())
         return np.concatenate((orientation, position, angular, linear))
-

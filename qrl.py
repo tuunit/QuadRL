@@ -17,7 +17,6 @@
 #        @date    26.08.2018                            #
 #########################################################
 import os
-import pickle
 import numpy as np
 import multiprocessing
 import tensorflow as tf
@@ -25,6 +24,7 @@ import tensorflow as tf
 from glob import glob
 from tqdm import tqdm
 from time import time
+from termcolor import colored
 from pyquaternion import Quaternion
 
 import nn
@@ -109,7 +109,7 @@ def run_training(arguments):
     sim.Interface.set_timestep(Config.TIME_STEP)
 
     # Start main training loop
-    for t in range(0, Config.TRAJECTORIES_N):
+    for t in range(0, Config.TRAINING_EPOCHS):
         if arguments.log:
             policy_log = open('policy_loss.txt', 'a')
             value_log = open('value_loss.txt', 'a')
@@ -121,7 +121,7 @@ def run_training(arguments):
 
         # Initialize random branch / junction points in time
         branches = sorted(np.random.randint(
-                            0, Config.INITIAL_LENGTH - Config.TAIL_STEPS, 
+                            0, Config.INITIAL_LENGTH,
                             size=Config.BRANCHES_N))
         branch_indices = np.random.randint(
                             0, Config.INITIAL_N,
@@ -320,7 +320,7 @@ def run_training(arguments):
 
         print('Mean Action    :', actions_sum / actions_count)
         print('Mean Action ABS:', actions_sum_abs / actions_count)
-        print('Average cost per time step:', costs_sum / (costs_count*0.01))
+        print(colored('Average cost per time step: {}'.format(costs_sum / (costs_count*0.01)), 'blue'))
         #print('Terminal position for Initial Trajectory:', terminal_position, np.linalg.norm(terminal_position))
         #print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
         #print('Approximated Value for Initial Trajectory:',
