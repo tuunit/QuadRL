@@ -109,7 +109,7 @@ def run_training(arguments):
     sim.Interface.set_timestep(Config.TIME_STEP)
 
     # Start main training loop
-    for t in range(0, Config.TRAJECTORIES_N):
+    for t in range(0, Config.TRAINING_EPOCHS):
         if arguments.log:
             policy_log = open('policy_loss.txt', 'a')
             value_log = open('value_loss.txt', 'a')
@@ -121,7 +121,7 @@ def run_training(arguments):
 
         # Initialize random branch / junction points in time
         branches = sorted(np.random.randint(
-                            0, Config.INITIAL_LENGTH - Config.TAIL_STEPS, 
+                            0, Config.INITIAL_LENGTH, 
                             size=Config.BRANCHES_N))
         branch_indices = np.random.randint(
                             0, Config.INITIAL_N,
