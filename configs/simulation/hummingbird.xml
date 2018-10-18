@@ -29,7 +29,7 @@
             <ki>0.000</ki>
             <kd>0.002</kd>
         </yaw_controller>
-        <location>0. 0. 1000.</location>
+        <location>0. 0. 0.</location>
         <orientation>0</orientation>
     </dynamics>
 

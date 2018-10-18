@@ -3,8 +3,9 @@ checkpoints
 libmath.so
 libquadsim.so
 libutils.so
-qsim.so
 policy_loss.txt
 value_loss.txt
 .idea
 tmp
+qsim.so
+pyquadsim.so

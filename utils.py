@@ -18,6 +18,7 @@
 #########################################################
 import numpy as np
 
+
 class Config:
     TRAINING_EPOCHS = 512
     INITIAL_N = 512
@@ -29,19 +30,20 @@ class Config:
     VALUE_LOSS_LIMIT = 0.0001
     DISCOUNT_VALUE = 0.99
     TIME_STEP = 0.01
-    ACTION_BIAS = 0.1
-    ACTION_SCALE = 1.
-    NOISE_COV = np.matrix([[.0062, 0., 0., 0.],
-                           [0., .0062, 0., 0.],
-                           [0., 0., .0062, 0.],
-                           [0., 0., 0., .0062]], dtype=np.float64)
+    ACTION_BIAS = 0.0
+    ACTION_SCALE = 2.
+    NOISE_COV = np.matrix([[.2, 0., 0., 0.],
+                           [0., .2, 0., 0.],
+                           [0., 0., .2, 0.],
+                           [0., 0., 0., .2]], dtype=np.float64)
     CHOLESKY_COV = np.linalg.cholesky(NOISE_COV)
     ANGULAR_VEL_NORM = 1/2.
     LINEAR_VEL_NORM = 1/2.
     POSITION_NORM = 1/2.
 
-    POLICY_SHAPE = [18, 128, 128, 4]
-    VALUE_SHAPE  = [18, 128, 128, 1]
+    POLICY_SHAPE = [18, 64, 64, 4]
+    VALUE_SHAPE  = [18, 64, 64, 1]
+
 
 class Utils:
     @staticmethod
@@ -81,7 +83,7 @@ class Utils:
         position = 4. * 10**(-3) * np.sqrt(np.linalg.norm(states[:, 9:12], axis=1))
         angular = 5. * 10**(-5) * np.linalg.norm(states[:, 12:15], axis=1)
         linear = 5. * 10**(-5) * np.linalg.norm(states[:, 15:18], axis=1)
-        action = 5. * 10**(-4) * np.linalg.norm(actions, axis=1)
+        action = 5. * 10**(-5) * np.linalg.norm(actions, axis=1)
 
         if len(action) != len(states) or len(linear) != len(states):
             print("Incorrect cost computation.")
