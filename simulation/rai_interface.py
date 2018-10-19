@@ -19,7 +19,7 @@
 import numpy as np
 from pyquaternion import Quaternion
 
-import pyquadsim as qsim
+import pyquadsim
 
 
 class RaiInterface:
@@ -33,7 +33,7 @@ class RaiInterface:
 
     @staticmethod
     def init():
-        qsim.createSimulator()
+        pyquadsim.createSimulator()
 
     @staticmethod
     def set_timestep(dt):
@@ -46,11 +46,11 @@ class RaiInterface:
 
     @staticmethod
     def release():
-        qsim.release()
+        pyquadsim.release()
 
     @staticmethod
     def update_stateless(pose, pid, thrusts):
-        pose = qsim.update(pose.tolist(), thrusts.tolist(), RaiInterface.dt, 0)
+        pose = pyquadsim.update(pose.tolist(), thrusts.tolist(), RaiInterface.dt, 0)
         if pose is not None:
             pose = np.array(pose, dtype=np.float64)
         return pose, pid
