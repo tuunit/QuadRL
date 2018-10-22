@@ -19,7 +19,7 @@
 import numpy as np
 from pyquaternion import Quaternion
 
-import pyquadsim
+from QuadNNLearn.build import pyquadsim
 
 
 class RaiInterface:
