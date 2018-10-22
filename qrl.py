@@ -485,7 +485,6 @@ def run_test(arguments):
                 action = Utils.forward(sess, policy_net, [state])[0]
 
                 action = Config.ACTION_SCALE * action + Config.ACTION_BIAS
-                print(action)
 
                 #action = np.clip(action, 0, ACTION_MAX)
 
