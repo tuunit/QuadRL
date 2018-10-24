@@ -27,7 +27,6 @@
         <transmitter>crazyradio</transmitter>
         <module_id>0</module_id>
         <radio_uri>radio://0/80/2M</radio_uri>
-        <flow_deck>1</flow_deck>
     </radio>
 
     <!--Visualization-->
@@ -39,7 +38,7 @@
         <!--Only for Visualization-->
         <rotor_radius>23.3</rotor_radius>
         <rotor_pitch>12.</rotor_pitch>
-        <rgb>0 0 0</rgb>
+        <rgb>0 127 127</rgb>
     </visualization>
 
 </opencv_storage>

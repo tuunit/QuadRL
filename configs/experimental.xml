@@ -16,13 +16,13 @@
     <visualization>
         <!--Redundant with Simulation below-->
         <mode>"XMode"</mode>
-        <rotor_distance>260</rotor_distance> <!--mm-->
+        <rotor_distance>110</rotor_distance> <!--mm-->
         <rpm_max>7800</rpm_max>
         <k_f>2.1996e-4</k_f>
         <!--Only for Visualization-->
-        <rotor_radius>101.6</rotor_radius>
+        <rotor_radius>50.8</rotor_radius>
         <rotor_pitch>12.</rotor_pitch>
-        <rgb>0 0 0</rgb>
+        <rgb>167 170 169</rgb>
     </visualization>
 
 </opencv_storage>
