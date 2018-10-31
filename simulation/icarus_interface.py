@@ -36,12 +36,12 @@ class IcarusInterface:
         pyquadsim.createSimulator()
 
     @staticmethod
-    def _get_pid(idx):
-        return pyquadsim.getPIDState(idx)
+    def _get_pid():
+        return pyquadsim.getPIDState()
 
     @staticmethod
-    def _set_pid(idx, pid):
-        pyquadsim.setPIDState(pid, idx)
+    def _set_pid(pid):
+        pyquadsim.setPIDState(pid)
 
     @staticmethod
     def set_timestep(dt):
@@ -59,12 +59,15 @@ class IcarusInterface:
 
     @staticmethod
     def update_stateless(pose, pid, thrusts):
-        IcarusInterface._set_pid(0, pid)
-        pose = pyquadsim.update(pose.tolist(), thrusts.tolist(), IcarusInterface.dt, 0)
-        pid = IcarusInterface._get_pid(0)
+        IcarusInterface._set_pid(pid)
+
+        pose = pyquadsim.update(pose.tolist(), thrusts.tolist(), IcarusInterface.dt)
+
+        pid = IcarusInterface._get_pid()
         if pose is not None:
             pose = np.array(pose, dtype=np.float64)
         return pose, pid
+
 
     @staticmethod
     def random_pose():

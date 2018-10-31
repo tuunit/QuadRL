@@ -23,7 +23,7 @@ from .icarus_interface import IcarusInterface as Interface
 class Trajectory:
     def __init__(self):
         self.pose = Interface.random_pose()
-        self.pid = [0.0 for _ in range(12)]
+        self.pid = [0.0, 0.0]
 
     def reset(self):
         self.pose = np.array([0.0 for _ in range(13)])
