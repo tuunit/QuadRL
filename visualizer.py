@@ -34,6 +34,8 @@ class Visualizer():
         self.ax.set_zlabel('Z')
         self.ax.set_title('Quadcopter Simulation')
 
+        self.target = self.ax.plot([], [], [], color='magenta', linewidth=1, antialiased=False)[0]
+        self.line = self.ax.plot([], [], [], color='cyan', linewidth=1, antialiased=False)[0]
         l1 = self.ax.plot([], [], [], color='blue', linewidth=3, antialiased=False)[0]
         l2 = self.ax.plot([], [], [], color='red', linewidth=3, antialiased=False)[0]
         normal = self.ax.plot([], [], [], color='black', linewidth=2, antialiased=False)[0]
@@ -83,6 +85,15 @@ class Visualizer():
             self.ax.set_zlim3d(z)
 
         plt.pause(0.000000000000001)
+    def draw(self, positions):
+        positions = np.array(positions)
+        self.line.set_data(positions[:,0], positions[:,1])
+        self.line.set_3d_properties(positions[:,2])
+
+    def draw_target(self, positions):
+        positions = np.array(positions)
+        self.target.set_data(positions[:,0], positions[:,1])
+        self.target.set_3d_properties(positions[:,2])
 
     def keypress(self,event):
         sys.stdout.flush()

@@ -30,7 +30,6 @@ class Config:
     VALUE_LOSS_LIMIT = 0.0001
     DISCOUNT_VALUE = 0.99
     TIME_STEP = 0.01
-    ACTION_BIAS = 0.0
     #ACTION_SCALE = 2.
     #NOISE_COV = np.matrix([[.2, 0., 0., 0.],
     #                       [0., .2, 0., 0.],

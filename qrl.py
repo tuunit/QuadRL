@@ -28,12 +28,12 @@ from termcolor import colored
 from pyquaternion import Quaternion
 
 import nn
-import simulation as sim
+from simulation import Trajectory
+from simulation import IcarusInterface as Interface
 
 from utils import Utils, Config
 from visualizer import Visualizer
 
-# Main function to start the testing or training loop
 def run(arguments):
     if arguments.test:
         run_test(arguments)
@@ -41,8 +41,8 @@ def run(arguments):
         run_training(arguments)
 
 def traj_step(args):
-    traj, thrusts = args
-    traj.step(thrusts)
+    traj, action = args
+    traj.step(action, pid=[-0.08, -0.0002], dt=Config.TIME_STEP)
     return traj
 
 def visualize(trajectories):
@@ -106,8 +106,6 @@ def run_training(arguments):
         policy_log = open('policy_loss.txt', 'a')
         value_log = open('value_loss.txt', 'a')
 
-    sim.Interface.set_timestep(Config.TIME_STEP)
-
     # Start main training loop
     for t in range(0, Config.TRAINING_EPOCHS):
         if arguments.log:
@@ -134,11 +132,11 @@ def run_training(arguments):
         costs_sum = 0.
         costs_count = 0
 
-        sim.Interface.init()
+        Interface.init()
         initial_trajs = []
 
         for _ in range(Config.INITIAL_N):
-            tmp = sim.Trajectory()
+            tmp = Trajectory(Interface)
             initial_trajs.append(tmp)
 
         # Generate branch trajectories
@@ -150,11 +148,11 @@ def run_training(arguments):
         costs_mat = []
         states = []
         for i, b in enumerate(initial_trajs):
-            states.append(b.get_pose_with_rotation_mat())
+            states.append(b.get_state())
 
         states = np.array(states)
 
-        with multiprocessing.Pool(processes=8) as pool:
+        with multiprocessing.Pool(processes=4) as pool:
             for j in range(0, Config.INITIAL_LENGTH):
                 pbar.update(1)
 
@@ -167,7 +165,7 @@ def run_training(arguments):
                 actions_mat.append(actions)
                 states_mat.append(states)
 
-                actions_feed = Config.ACTION_SCALE * actions + Config.ACTION_BIAS
+                actions_feed = Config.ACTION_SCALE * actions
                 if j in branches:
                     for idx in range(branches.count(j)):
                         for _ in range(Config.NOISE_DEPTH):
@@ -177,7 +175,7 @@ def run_training(arguments):
                             branch_trajs['init_trajs'].append(branch_indices[branches.index(j) + idx])
 
                 initial_trajs = pool.map(traj_step, zip(initial_trajs, actions_feed))
-                states = np.array([traj.get_pose_with_rotation_mat() for traj in initial_trajs])
+                states = np.array([traj.get_state() for traj in initial_trajs])
                 costs_mat.append(Utils.compute_cost(states, actions))
                 costs_sum += sum(costs_mat[-1])
                 costs_count += len(costs_mat[-1])
@@ -207,11 +205,11 @@ def run_training(arguments):
         noise_mat = []
         states = []
         for i, b in enumerate(branch_trajs['trajs']):
-            states.append(b.get_pose_with_rotation_mat())
+            states.append(b.get_state())
 
         states = np.array(states)
 
-        with multiprocessing.Pool(processes=8) as pool:
+        with multiprocessing.Pool(processes=4) as pool:
             for j in range(0, Config.BRANCH_LENGTH):
                 pbar.update(1)
 
@@ -226,17 +224,17 @@ def run_training(arguments):
                     noises = np.repeat(noises, Config.NOISE_DEPTH, axis=0)
                     noises[mask] *= 0.
 
-                    actions_feed = Config.ACTION_SCALE * (noises + actions) + Config.ACTION_BIAS
+                    actions_feed = Config.ACTION_SCALE * (noises + actions)
 
                     mask = np.array([False if (x % Config.NOISE_DEPTH) == j else True for x in range(Config.BRANCHES_N * Config.NOISE_DEPTH)])
                     noises[mask] *= 0.
                     noise_mat.append(noises)
                 else:
-                    actions_feed = Config.ACTION_SCALE * actions + Config.ACTION_BIAS
+                    actions_feed = Config.ACTION_SCALE * actions
 
                 branch_trajs['trajs'] = pool.map(traj_step, zip(branch_trajs['trajs'], actions_feed))
 
-                states = np.array([traj.get_pose_with_rotation_mat() for traj in branch_trajs['trajs']])
+                states = np.array([traj.get_state() for traj in branch_trajs['trajs']])
 
                 costs_mat.append(Utils.compute_cost(states, actions))
 
@@ -321,14 +319,7 @@ def run_training(arguments):
         print('Mean Action    :', actions_sum / actions_count)
         print('Mean Action ABS:', actions_sum_abs / actions_count)
         print(colored('Average cost per time step: {}'.format(costs_sum / (costs_count*0.01)), 'blue'))
-        #print('Terminal position for Initial Trajectory:', terminal_position, np.linalg.norm(terminal_position))
-        #print('Value for Initial Trajectory:', all_trajectories[0][0]['values'][0])
-        #print('Approximated Value for Initial Trajectory:',
-            #value_net.model().eval(session=value_sess, 
-                                    #feed_dict={value_net.input: [
-                                        #normalize_state(all_trajectories[0][0]['states'][0])
-                                    #]})[0])
-        #print('Average value per initial traj:', values_sum / values_count)
+
         if arguments.log:
             policy_log.write(str(costs_sum / (costs_count*0.01))+'\n')
 
@@ -371,6 +362,7 @@ def run_training(arguments):
                     junction_states.append(junction_state)
 
             loss += sum(As)
+
         # Optimize policy network
         #print('Policy network training')
         with policy_sess.as_default():
@@ -430,16 +422,15 @@ def run_training(arguments):
         with value_sess.as_default():
             with value_sess.graph.as_default():
                 value_net.saver.save(value_sess, 'tmp/value_checkpoint_' + timestamp + '.ckpt')
-        sim.Interface.release()
+        Interface.release()
 
 def run_test(arguments):
     # Reset Tensorflow graph
     tf.reset_default_graph()
 
     # Instantiate publisher and subscriber for Gazebo
-    sim.Interface.set_timestep(Config.TIME_STEP)
-    sim.Interface.init()
-    traj = sim.Trajectory()
+    Interface.init()
+    traj = Trajectory(Interface)
 
     visualizer = Visualizer(0.046 * 50)
     refresh_rate = 1 / 20.
@@ -456,21 +447,44 @@ def run_test(arguments):
 
         for _ in range(1):
             # Generate random start position for the Quadcopter
-            traj.set_pose(sim.Interface.random_pose())
+            traj.set_pose(Trajectory.random_pose())
 
             refresh_time = 0
 
-            for _ in range(512):
+            TARGETS = [[ 0,  0, 0],
+                       [ 0,  0, 5],
+                       [ 5,  5, 5],
+                       [ 5, -5, 5],
+                       [-5, -5, 5],
+                       [-5,  5, 5],
+                       [ 5,  5, 5],
+                       [ 0,  0, 5],
+                       [ 0,  0, 0]]
+            c = 0
+
+            positions = []
+            for i in range(2500):
+                if i % 250 == 0:
+                    TARGET = TARGETS[c]
+                    c += 1
+                    print("TARGET: ", TARGET)
                 # Get state information from drone subscriber
-                orientation, position, angular, linear = traj.get_state()
+                state = traj.get_state()
+                orientation = state[0:9]
+                position = state[9:12]
+                angular = state[12:15]
+                linear = state[15:18]
+                positions.append(position)
 
                 # Calculate rotation matrix from quaternion
-                orientation = Quaternion(orientation)
+                orientation = Quaternion(matrix=np.reshape(orientation, (3,3)))
 
                 state = {'position': position, 'rotation_matrix': orientation.rotation_matrix}
 
                 if refresh_time - refresh_rate < time():
                     visualizer.update(state, 0)
+                    visualizer.draw(positions)
+                    visualizer.draw_target(TARGETS)
                     refresh_time = time()
 
                 orientation = np.ndarray.flatten(orientation.rotation_matrix)
@@ -478,15 +492,17 @@ def run_test(arguments):
                 # Calculate relative distance to target position
                 #position = np.subtract(position, TARGET)
 
+                position = np.subtract(position, [-0.29748929, -0.66516153, -0.43737027])
+                position = np.subtract(position, TARGET)
+
                 # Concatenate all to generate an input state vector for the networks
                 state = np.concatenate((orientation, position, angular, linear))
 
                 # Predict action with policy network
                 action = Utils.forward(sess, policy_net, [state])[0]
 
-                action = Config.ACTION_SCALE * action + Config.ACTION_BIAS
-
-                #action = np.clip(action, 0, ACTION_MAX)
+                action = Config.ACTION_SCALE * action 
 
                 # Feed action vector to the drone
-                traj.step(action)
+                traj.step(action, pid=[-0.08, -0.0002], dt=Config.TIME_STEP)
+            input('Press Enter to exit')
