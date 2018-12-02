@@ -1,3 +1,0 @@
-[submodule "PyQuadSim"]
-	path = PyQuadSim
-	url = git@gitlab.com:QuadRL/pyquadsim.git

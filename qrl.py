@@ -29,7 +29,7 @@ from pyquaternion import Quaternion
 
 import nn
 from simulation import Trajectory
-from simulation import IcarusInterface as Interface
+from simulation import PythonSimulator as Interface
 
 from utils import Utils, Config
 from visualizer import Visualizer
@@ -42,7 +42,7 @@ def run(arguments):
 
 def traj_step(args):
     traj, action = args
-    traj.step(action, pid=[-0.08, -0.0002], dt=Config.TIME_STEP)
+    traj.step(action)
     return traj
 
 def visualize(trajectories):
@@ -504,5 +504,5 @@ def run_test(arguments):
                 action = Config.ACTION_SCALE * action 
 
                 # Feed action vector to the drone
-                traj.step(action, pid=[-0.08, -0.0002], dt=Config.TIME_STEP)
+                traj.step(action)
             input('Press Enter to exit')
